@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="CorredorVerde.Tests/CorredorVerde.Tests.csproj" />
+  <Project Path="CorredorVerde/CorredorVerde.csproj" />
+</Solution>
