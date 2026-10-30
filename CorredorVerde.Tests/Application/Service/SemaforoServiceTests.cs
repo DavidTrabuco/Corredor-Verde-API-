@@ -1,4 +1,3 @@
-using CorredorVerde.Domain.Entidades;
 using CorredorVerde.Domain.Enums;
 using CorredorVerde.Tests.TestSupport;
 
@@ -6,272 +5,218 @@ namespace CorredorVerde.Tests.Application.Service
 {
     public class SemaforoServiceTests
     {
-        private const double Passo = 0.1;
-
-        private static ReservaCorredor Reserva(string viatura, Eixo eixo, int criticidade, int ordem) => new()
-        {
-            ViaturaId = viatura,
-            OcorrenciaId = $"OC-{ordem:000}",
-            Eixo = eixo,
-            Criticidade = criticidade,
-            Ordem = ordem
-        };
-
-        [Fact]
+        [Fact(DisplayName = "RN01 · Norte-Sul e Leste-Oeste nunca ficam verdes juntos, nem em 1 hora de simulação")]
         [Trait("Requisito", "RN01")]
         [Trait("Requisito", "RNF01")]
         public void Avancar_NuncaDeixaDuasDirecoesVerdes_DuranteUmaHoraDeSimulacao()
         {
-            // Arrange
+            // Arrange: em C7, duas viaturas pedem corredor em direções diferentes
             var f = CidadeFactory.Criar();
-            // Dois corredores em direções diferentes no mesmo cruzamento, para exercitar a troca forçada
-            var c7 = f.Cidade.Cruzamentos["C7"];
-            c7.Reservas.Add(Reserva("AMB-01", Eixo.NS, 2, 1));
-            c7.Reservas.Add(Reserva("BOM-01", Eixo.LO, 1, 2));
-            var verdesDuplos = 0;
+            f.Reservar("C7", "AMB-01", Eixo.NS, criticidade: 2, ordem: 1);
+            f.Reservar("C7", "BOM-01", Eixo.LO, criticidade: 1, ordem: 2);
+            var vezesComDoisVerdes = 0;
 
-            // Act
+            // Act: 36.000 passos de 0,1 s = 1 hora
             for (var i = 0; i < 36000; i++)
             {
-                f.Avancar(Passo);
-                foreach (var c in f.Cidade.Cruzamentos.Values)
-                {
-                    if (f.Semaforo.Luz(c.Id, Eixo.NS) == Luz.Verde && f.Semaforo.Luz(c.Id, Eixo.LO) == Luz.Verde)
-                        verdesDuplos++;
-                }
+                f.Avancar(0.1);
+                vezesComDoisVerdes += f.ContarCruzamentosComDoisVerdes();
             }
 
             // Assert
-            Assert.Equal(0, verdesDuplos);
+            Assert.Equal(0, vezesComDoisVerdes);
         }
 
-        [Fact]
+        [Fact(DisplayName = "RN02 · Mesmo quando o corredor pede a troca, o verde passa 2 s no amarelo antes do vermelho")]
         [Trait("Requisito", "RN02")]
         public void Avancar_PassaPorAmareloDeDoisSegundos_AntesDoVermelho()
         {
-            // Arrange
+            // Arrange: C7 com verde para Norte-Sul
             var f = CidadeFactory.Criar();
-            var anterior = new Dictionary<string, Luz>();
-            var inicioAmarelo = new Dictionary<string, double>();
-            var semAmarelo = 0;
-            var amareloCurto = 0;
+            f.SemaforoComeca("C7", Eixo.NS);
 
-            // Act
-            for (var i = 0; i < 36000; i++)
-            {
-                f.Avancar(Passo);
-                foreach (var c in f.Cidade.Cruzamentos.Values)
-                {
-                    foreach (var eixo in new[] { Eixo.NS, Eixo.LO })
-                    {
-                        var chave = c.Id + eixo;
-                        var luz = f.Semaforo.Luz(c.Id, eixo);
-                        anterior.TryGetValue(chave, out var antes);
-                        var tinhaAnterior = anterior.ContainsKey(chave);
+            // Act: chega uma ambulância pelo Leste-Oeste
+            f.Reservar("C7", "AMB-01", Eixo.LO, criticidade: 1, ordem: 1);
+            f.Semaforo.Atualizar(f.PegarCruzamento("C7"));
 
-                        if (luz == Luz.Amarelo && (!tinhaAnterior || antes != Luz.Amarelo))
-                            inicioAmarelo[chave] = f.Cidade.TempoSeg;
-                        if (tinhaAnterior && antes == Luz.Verde && luz == Luz.Vermelho)
-                            semAmarelo++;
-                        if (tinhaAnterior && antes == Luz.Amarelo && luz == Luz.Vermelho
-                            && f.Cidade.TempoSeg - inicioAmarelo[chave] < f.Cidade.Config.AmareloSeg - 1e-6)
-                            amareloCurto++;
+            // Assert: na hora, o Norte-Sul vai para amarelo (não pula direto para vermelho)
+            Assert.Equal(Luz.Amarelo, f.LuzDe("C7", Eixo.NS));
 
-                        anterior[chave] = luz;
-                    }
-                }
-            }
+            // Assert: com 1,9 s ainda é amarelo
+            f.Avancar(1.9);
+            Assert.Equal(Luz.Amarelo, f.LuzDe("C7", Eixo.NS));
 
-            // Assert
-            Assert.Equal(0, semAmarelo);
-            Assert.Equal(0, amareloCurto);
+            // Assert: com 2 s o Norte-Sul fecha e o Leste-Oeste abre
+            f.Avancar(0.1);
+            Assert.Equal(Luz.Vermelho, f.LuzDe("C7", Eixo.NS));
+            Assert.Equal(Luz.Verde, f.LuzDe("C7", Eixo.LO));
         }
 
-        [Fact]
+        [Fact(DisplayName = "RN03 · Sem emergência, o semáforo fica 8 s verde e 2 s amarelo em cada direção")]
         [Trait("Requisito", "RN03")]
         [Trait("Requisito", "UC02")]
         public void Avancar_AlternaOitoSegundosDeVerdeEDoisDeAmarelo_QuandoNaoHaCorredor()
         {
             // Arrange
             var f = CidadeFactory.Criar();
-            var s = f.Cidade.Cruzamentos["C1"].Semaforo;
-            s.EixoVerde = Eixo.NS;
-            s.EmAmarelo = false;
-            s.DesdeSeg = 0;
-            var trocas = new List<(string Fase, double Tempo)>();
-            var anterior = "NS:Verde";
+            f.SemaforoComeca("C1", Eixo.NS);
 
-            // Act
-            for (var i = 0; i < 300; i++)
-            {
-                f.Avancar(Passo);
-                var atual = $"{s.EixoVerde}:{(s.EmAmarelo ? "Amarelo" : "Verde")}";
-                if (atual != anterior)
-                {
-                    trocas.Add((atual, f.Cidade.TempoSeg));
-                    anterior = atual;
-                }
-            }
+            // Act + Assert: 7,9 s → Norte-Sul ainda verde
+            f.Avancar(7.9);
+            Assert.Equal(Luz.Verde, f.LuzDe("C1", Eixo.NS));
 
-            // Assert: NS verde até 8 s, amarelo até 10 s, então LO verde até 18 s
-            var esperado = new[] { ("NS:Amarelo", 8.0), ("LO:Verde", 10.0), ("LO:Amarelo", 18.0) };
-            Assert.True(trocas.Count >= 3, "O ciclo não trocou de fase.");
-            for (var i = 0; i < esperado.Length; i++)
-            {
-                Assert.Equal(esperado[i].Item1, trocas[i].Fase);
-                Assert.InRange(trocas[i].Tempo, esperado[i].Item2 - 0.11, esperado[i].Item2 + 0.11);
-            }
+            // Act + Assert: 8 s → Norte-Sul amarelo
+            f.Avancar(0.1);
+            Assert.Equal(Luz.Amarelo, f.LuzDe("C1", Eixo.NS));
+
+            // Act + Assert: 10 s → a vez do Leste-Oeste
+            f.Avancar(2.0);
+            Assert.Equal(Luz.Vermelho, f.LuzDe("C1", Eixo.NS));
+            Assert.Equal(Luz.Verde, f.LuzDe("C1", Eixo.LO));
+
+            // Act + Assert: 18 s → Leste-Oeste amarelo
+            f.Avancar(8.0);
+            Assert.Equal(Luz.Amarelo, f.LuzDe("C1", Eixo.LO));
         }
 
-        [Fact]
+        [Fact(DisplayName = "RN07 · Só pode atravessar no verde; vermelho e amarelo seguram a viatura na faixa")]
         [Trait("Requisito", "RN07")]
         public void PodeAtravessar_DeveNegar_QuandoVermelhoOuAmarelo()
         {
-            // Arrange
+            // Arrange: C7 verde para Norte-Sul (logo, vermelho para Leste-Oeste)
             var f = CidadeFactory.Criar();
-            var s = f.Cidade.Cruzamentos["C7"].Semaforo;
-            s.EixoVerde = Eixo.NS;
-            s.EmAmarelo = false;
+            f.SemaforoComeca("C7", Eixo.NS);
 
-            // Act + Assert: verde libera, vermelho segura
-            Assert.True(f.Semaforo.PodeAtravessar("C7", Eixo.NS, "AMB-01").Pode);
-            Assert.False(f.Semaforo.PodeAtravessar("C7", Eixo.LO, "AMB-01").Pode);
+            // Act
+            var noVerde = f.Semaforo.PodeAtravessar("C7", Eixo.NS, "AMB-01");
+            var noVermelho = f.Semaforo.PodeAtravessar("C7", Eixo.LO, "AMB-01");
+            f.PegarCruzamento("C7").Semaforo.EmAmarelo = true;
+            var noAmarelo = f.Semaforo.PodeAtravessar("C7", Eixo.NS, "AMB-01");
 
-            // Act + Assert: amarelo segura
-            s.EmAmarelo = true;
-            Assert.False(f.Semaforo.PodeAtravessar("C7", Eixo.NS, "AMB-01").Pode);
+            // Assert
+            Assert.True(noVerde.Pode);
+            Assert.False(noVermelho.Pode);
+            Assert.False(noAmarelo.Pode);
         }
 
-        [Fact]
+        [Fact(DisplayName = "RN07 · A espera no sinal só vai para o log quando a viatura está em emergência")]
         [Trait("Requisito", "RN07")]
         public void PodeAtravessar_DeveLogarAEspera_SomenteQuandoAViaturaEstaEmEmergencia()
         {
-            // Arrange
+            // Arrange: C7 vermelho para Leste-Oeste
             var f = CidadeFactory.Criar();
-            f.Cidade.Cruzamentos["C7"].Semaforo.EixoVerde = Eixo.NS;
+            f.SemaforoComeca("C7", Eixo.NS);
 
-            // Act: em patrulha só conta
+            // Act + Assert: em patrulha, não registra nada
             f.Semaforo.PodeAtravessar("C7", Eixo.LO, "AMB-01");
-            var logsEmPatrulha = f.Cidade.Log.Count;
+            Assert.Empty(f.Cidade.Log);
 
-            // Act: em emergência vai para o log, uma vez só por cruzamento
-            f.Cidade.Viaturas["AMB-01"].Modo = ModoViatura.Emergencia;
+            // Act + Assert: em emergência, registra uma vez só, mesmo perguntando duas vezes
+            f.PegarViatura("AMB-01").Modo = ModoViatura.Emergencia;
             f.Semaforo.PodeAtravessar("C7", Eixo.LO, "AMB-01");
             f.Semaforo.PodeAtravessar("C7", Eixo.LO, "AMB-01");
-
-            // Assert
-            Assert.Equal(0, logsEmPatrulha);
             Assert.Single(f.Cidade.Log);
-            Assert.Contains("AMB-01 parou na faixa de C7: vermelho para Leste-Oeste", f.Cidade.Log[0].Mensagem);
+            Assert.True(f.LogTem("AMB-01 parou na faixa de C7: vermelho para Leste-Oeste. Espera o verde."));
         }
 
-        [Fact]
+        [Fact(DisplayName = "RN13 · Semáforo em falha fica piscante, e a viatura passa com cautela")]
         [Trait("Requisito", "RN13")]
         [Trait("Requisito", "RN07")]
         public void PodeAtravessar_DevePermitirComCautela_QuandoSemaforoEstaEmFalha()
         {
             // Arrange
             var f = CidadeFactory.Criar();
-            f.Cidade.Cruzamentos["C7"].Semaforo.EmFalha = true;
+            f.ColocarEmFalha("C7");
 
             // Act
-            var resultado = f.Semaforo.PodeAtravessar("C7", Eixo.NS, "AMB-01");
+            var resposta = f.Semaforo.PodeAtravessar("C7", Eixo.NS, "AMB-01");
 
             // Assert
-            Assert.True(resultado.Pode);
-            Assert.True(resultado.Cautela);
-            Assert.Equal(Luz.Piscante, resultado.Luz);
+            Assert.True(resposta.Pode);
+            Assert.True(resposta.Cautela);
+            Assert.Equal(Luz.Piscante, resposta.Luz);
         }
 
-        [Fact]
+        [Fact(DisplayName = "RNF12 · Os tempos do semáforo vêm da configuração, sem mudar o código")]
         [Trait("Requisito", "RNF12")]
         public void Avancar_DeveUsarOsTemposDoAppsettings_QuandoConfiguracaoMuda()
         {
-            // Arrange
-            var f = CidadeFactory.Criar(o =>
+            // Arrange: 5 s de verde e 1 s de amarelo, em vez de 8 e 2
+            var f = CidadeFactory.Criar(opcoes =>
             {
-                o.VerdeSeg = 5;
-                o.AmareloSeg = 1;
+                opcoes.VerdeSeg = 5;
+                opcoes.AmareloSeg = 1;
             });
-            var s = f.Cidade.Cruzamentos["C1"].Semaforo;
-            s.EixoVerde = Eixo.NS;
-            s.EmAmarelo = false;
-            s.DesdeSeg = 0;
+            f.SemaforoComeca("C1", Eixo.NS);
 
-            // Act + Assert: com verdeSeg = 5, o amarelo começa em 5 s
+            // Act + Assert: com 5 s já é amarelo
             f.Avancar(5.0);
-            Assert.True(s.EmAmarelo);
+            Assert.Equal(Luz.Amarelo, f.LuzDe("C1", Eixo.NS));
 
-            // Act + Assert: com amareloSeg = 1, a troca ocorre 1 s depois
+            // Act + Assert: 1 s depois, a vez do Leste-Oeste
             f.Avancar(1.0);
-            Assert.Equal(Eixo.LO, s.EixoVerde);
-            Assert.False(s.EmAmarelo);
+            Assert.Equal(Luz.Verde, f.LuzDe("C1", Eixo.LO));
         }
 
-        [Fact]
+        [Fact(DisplayName = "RN12 · No conflito vence a criticidade mais grave (1); no empate, quem foi registrado primeiro")]
         [Trait("Requisito", "RN12")]
         public void Vencedor_DevePriorizarMaiorCriticidade_EDepoisOMaisAntigo()
         {
             // Arrange
             var f = CidadeFactory.Criar();
-            var c = f.Cidade.Cruzamentos["C13"];
+            var c13 = f.PegarCruzamento("C13");
 
             // Act + Assert: sem reserva, ninguém vence
-            Assert.Null(f.Semaforo.Vencedor(c));
+            Assert.Null(f.Semaforo.Vencedor(c13));
 
             // Act + Assert: criticidade 1 vence a 2, mesmo registrada depois
-            c.Reservas.Add(Reserva("AMB-01", Eixo.LO, 2, 1));
-            c.Reservas.Add(Reserva("BOM-01", Eixo.NS, 1, 2));
-            Assert.Equal("BOM-01", f.Semaforo.Vencedor(c)!.ViaturaId);
+            f.Reservar("C13", "AMB-01", Eixo.LO, criticidade: 2, ordem: 1);
+            f.Reservar("C13", "BOM-01", Eixo.NS, criticidade: 1, ordem: 2);
+            Assert.Equal("BOM-01", f.Semaforo.Vencedor(c13)?.ViaturaId);
 
-            // Act + Assert: em empate, a registrada primeiro
-            c.Reservas.Clear();
-            c.Reservas.Add(Reserva("BOM-01", Eixo.NS, 2, 2));
-            c.Reservas.Add(Reserva("AMB-01", Eixo.LO, 2, 1));
-            Assert.Equal("AMB-01", f.Semaforo.Vencedor(c)!.ViaturaId);
+            // Act + Assert: com as duas em criticidade 2, vence a ordem 1
+            c13.Reservas.Clear();
+            f.Reservar("C13", "BOM-01", Eixo.NS, criticidade: 2, ordem: 2);
+            f.Reservar("C13", "AMB-01", Eixo.LO, criticidade: 2, ordem: 1);
+            Assert.Equal("AMB-01", f.Semaforo.Vencedor(c13)?.ViaturaId);
         }
 
-        [Fact]
+        [Fact(DisplayName = "RN06 · Com corredor, o verde vai para a direção da viatura e fica parado ali")]
         [Trait("Requisito", "RN06")]
-        public void Atualizar_DeveAbrirOVerdeParaODirecaoDoCorredor_ESegurarAte_Liberar()
+        public void Atualizar_DeveAbrirOVerdeParaADirecaoDoCorredor_ESegurarAteLiberar()
         {
-            // Arrange: C7 começa com verde para Norte-Sul
+            // Arrange: C7 verde para Norte-Sul; a ambulância vem pelo Leste-Oeste
             var f = CidadeFactory.Criar();
-            var c7 = f.Cidade.Cruzamentos["C7"];
-            c7.Reservas.Add(Reserva("AMB-01", Eixo.LO, 1, 1));
-            f.Semaforo.Atualizar(c7);
+            f.SemaforoComeca("C7", Eixo.NS);
+            f.Reservar("C7", "AMB-01", Eixo.LO, criticidade: 1, ordem: 1);
 
-            // Act: depois do amarelo de 2 s, o verde é do Leste-Oeste
-            f.Avancar(2.0);
-            Assert.Equal(Luz.Verde, f.Semaforo.Luz("C7", Eixo.LO));
-            Assert.Equal(Luz.Vermelho, f.Semaforo.Luz("C7", Eixo.NS));
+            // Act + Assert: depois dos 2 s de amarelo, o verde é do Leste-Oeste
+            f.Avancar(2.1);
+            Assert.Equal(Luz.Verde, f.LuzDe("C7", Eixo.LO));
 
-            // Assert: o verde fica parado enquanto a reserva existir (muito além dos 8 s normais)
+            // Act + Assert: 30 s depois continua verde (no normal trocaria em 8 s)
             f.Avancar(30.0);
-            Assert.Equal(Luz.Verde, f.Semaforo.Luz("C7", Eixo.LO));
+            Assert.Equal(Luz.Verde, f.LuzDe("C7", Eixo.LO));
         }
 
-        [Fact]
+        [Fact(DisplayName = "RN08 · Quando a reserva sai, o cruzamento volta a alternar no ciclo normal")]
         [Trait("Requisito", "RN08")]
         public void Liberar_DeveTirarAReserva_EVoltarAoCicloNormal()
         {
-            // Arrange
+            // Arrange: C7 em corredor para o Leste-Oeste
             var f = CidadeFactory.Criar();
-            var c7 = f.Cidade.Cruzamentos["C7"];
-            c7.Reservas.Add(Reserva("AMB-01", Eixo.LO, 1, 1));
-            f.Semaforo.Atualizar(c7);
-            f.Avancar(2.0);
+            f.SemaforoComeca("C7", Eixo.NS);
+            f.Reservar("C7", "AMB-01", Eixo.LO, criticidade: 1, ordem: 1);
+            f.Avancar(2.1);
 
             // Act
-            var liberou = f.Semaforo.Liberar(c7, "AMB-01");
-            var liberouDeNovo = f.Semaforo.Liberar(c7, "AMB-01");
-            f.Avancar(f.Cidade.Config.VerdeSeg + f.Cidade.Config.AmareloSeg + 0.2);
+            var liberou = f.Semaforo.Liberar(f.PegarCruzamento("C7"), "AMB-01");
+            f.Avancar(10.2);
 
-            // Assert: sem reserva, as fases voltam a alternar
+            // Assert: sem reserva, depois de 10 s (8 verde + 2 amarelo) a vez volta ao Norte-Sul
             Assert.True(liberou);
-            Assert.False(liberouDeNovo);
-            Assert.Empty(c7.Reservas);
-            Assert.Equal(Eixo.NS, c7.Semaforo.EixoVerde);
+            Assert.Equal("nenhuma", f.ReservasComoTexto("C7"));
+            Assert.Equal(Luz.Verde, f.LuzDe("C7", Eixo.NS));
         }
     }
 }

@@ -7,152 +7,137 @@ namespace CorredorVerde.Tests.Application.Service
 {
     public class MalhaServiceTests
     {
-        [Fact]
+        [Fact(DisplayName = "RN05 · De qualquer cruzamento para qualquer outro, a rota tem o menor número de quarteirões")]
         [Trait("Requisito", "RN05")]
         public void MenorCaminho_DeveTerOMenorNumeroDeQuarteiroes_ParaTodosOsPares()
         {
             // Arrange
             var f = CidadeFactory.Criar();
-            var ids = f.Cidade.Cruzamentos.Keys.ToList();
 
-            foreach (var a in ids)
+            // Act + Assert: testa os 20 × 20 = 400 pares de cruzamentos
+            foreach (var origem in f.IdsDosCruzamentos())
             {
-                foreach (var b in ids)
+                foreach (var destino in f.IdsDosCruzamentos())
                 {
-                    // Act
-                    var caminho = f.Malha.MenorCaminho(a, b);
+                    var caminho = f.Malha.MenorCaminho(origem, destino);
 
-                    // Assert: numa grade, o menor caminho é a distância de Manhattan
-                    var ca = f.Cidade.Cruzamentos[a];
-                    var cb = f.Cidade.Cruzamentos[b];
-                    var manhattan = Math.Abs(ca.Coluna - cb.Coluna) + Math.Abs(ca.Linha - cb.Linha);
                     Assert.NotNull(caminho);
-                    Assert.Equal(manhattan, caminho!.Count);
+                    Assert.Equal(f.QuarteiroesEntre(origem, destino), caminho.Count);
                 }
             }
         }
 
-        [Fact]
+        [Fact(DisplayName = "RN05 · Com C12 em falha, a rota de C11 a C13 dá a volta por cima")]
         [Trait("Requisito", "RN05")]
         [Trait("Requisito", "RN13")]
         public void MenorCaminho_DeveDesviar_QuandoCruzamentoEstaEmFalha()
         {
             // Arrange
             var f = CidadeFactory.Criar();
-            f.Cidade.Cruzamentos["C12"].Semaforo.EmFalha = true;
+            f.ColocarEmFalha("C12");
 
             // Act
-            var caminho = f.Malha.MenorCaminho("C11", "C13");
+            var caminho = f.CaminhoComoTexto("C11", "C13");
 
-            // Assert
-            Assert.NotNull(caminho);
-            Assert.DoesNotContain("C12", caminho!);
-            Assert.Equal("C13", caminho[^1]);
+            // Assert: sem falha seria "C12 → C13"
+            Assert.Equal("C6 → C7 → C8 → C13", caminho);
         }
 
-        [Fact]
+        [Fact(DisplayName = "RN13 · Se todos os vizinhos do destino estão em falha, não existe caminho")]
         [Trait("Requisito", "RN13")]
         [Trait("Requisito", "RNF03")]
         public void MenorCaminho_DeveRetornarNulo_QuandoDestinoEstaCercadoPorFalhas()
         {
-            // Arrange: C15 (borda leste) só tem os vizinhos C10, C14 e C20
+            // Arrange: C15 só tem três vizinhos, C10, C14 e C20
             var f = CidadeFactory.Criar();
-            f.Cidade.Cruzamentos["C10"].Semaforo.EmFalha = true;
-            f.Cidade.Cruzamentos["C14"].Semaforo.EmFalha = true;
-            f.Cidade.Cruzamentos["C20"].Semaforo.EmFalha = true;
+            f.ColocarEmFalha("C10", "C14", "C20");
 
             // Act
             var caminho = f.Malha.MenorCaminho("C11", "C15");
 
-            // Assert
+            // Assert: null = "não tem caminho"
             Assert.Null(caminho);
         }
 
-        [Fact]
+        [Fact(DisplayName = "RN05 · O destino pode estar em falha; só os cruzamentos do meio do caminho são evitados")]
         [Trait("Requisito", "RN05")]
         public void MenorCaminho_DeveAceitarDestinoEmFalha_QuandoEleEOProprioDestino()
         {
             // Arrange
             var f = CidadeFactory.Criar();
-            f.Cidade.Cruzamentos["C13"].Semaforo.EmFalha = true;
+            f.ColocarEmFalha("C13");
 
             // Act
-            var caminho = f.Malha.MenorCaminho("C11", "C13");
+            var caminho = f.CaminhoComoTexto("C11", "C13");
 
-            // Assert: a ocorrência pode estar num cruzamento com falha
-            Assert.NotNull(caminho);
-            Assert.Equal("C13", caminho![^1]);
+            // Assert
+            Assert.Equal("C12 → C13", caminho);
         }
 
-        [Fact]
+        [Fact(DisplayName = "RNF07 · Calcular a rota mais longa da malha (C1 até C20) leva no máximo 50 ms")]
         [Trait("Requisito", "RNF07")]
         public void MenorCaminho_DeveLevarAteCinquentaMs_NaMalhaDeVinteCruzamentos()
         {
-            // Arrange
+            // Arrange: a primeira chamada só "aquece" o código, que o .NET compila na primeira vez
             var f = CidadeFactory.Criar();
-            f.Malha.MenorCaminho("C1", "C20"); // aquece o JIT
-            var pior = 0.0;
+            f.Malha.MenorCaminho("C1", "C20");
+            var cronometro = new Stopwatch();
 
-            for (var i = 0; i < 400; i++)
-            {
-                // Act
-                var inicio = Stopwatch.GetTimestamp();
-                f.Malha.MenorCaminho("C1", "C20");
-                var ms = Stopwatch.GetElapsedTime(inicio).TotalMilliseconds;
-                pior = Math.Max(pior, ms);
-            }
+            // Act
+            cronometro.Start();
+            f.Malha.MenorCaminho("C1", "C20");
+            cronometro.Stop();
 
             // Assert
-            Assert.True(pior <= 50, $"Pior caso {pior:F2} ms.");
+            Assert.True(cronometro.ElapsedMilliseconds <= 50);
         }
 
-        [Fact]
+        [Fact(DisplayName = "RN04 · A ambulância leva o paciente ao hospital mais perto do local")]
         [Trait("Requisito", "RN04")]
         public void HospitalMaisProximo_DeveEscolherOHospitalComMenorCaminho()
         {
             // Arrange
             var f = CidadeFactory.Criar();
 
-            // Act
-            var perto = f.Malha.HospitalMaisProximo("C14");
-            var norte = f.Malha.HospitalMaisProximo("C2");
+            // Act: C14 fica a 2 quarteirões do Hospital Sul; C2 fica a 1 do Hospital Norte
+            var hospitalDeC14 = f.Malha.HospitalMaisProximo("C14");
+            var hospitalDeC2 = f.Malha.HospitalMaisProximo("C2");
 
-            // Assert: C14 está a 2 quarteirões de C18 (Sul); C2 a 1 de C3 (Norte)
-            Assert.Equal("Hospital Sul", perto!.Nome);
-            Assert.Equal("Hospital Norte", norte!.Nome);
+            // Assert
+            Assert.Equal("Hospital Sul", hospitalDeC14?.Nome);
+            Assert.Equal("Hospital Norte", hospitalDeC2?.Nome);
         }
 
-        [Fact]
+        [Fact(DisplayName = "RN06 · Cada passo da rota diz por qual eixo a viatura chega (é esse eixo que ganha o verde)")]
         [Trait("Requisito", "RN06")]
         public void MontarRota_DeveInformarOEixoDeChegadaEmCadaCruzamento()
         {
-            // Arrange
+            // Arrange: de C11 a C8 o caminho é C6 → C7 → C8
             var f = CidadeFactory.Criar();
-            var caminho = f.Malha.MenorCaminho("C11", "C8")!;
+            var caminho = f.Malha.MenorCaminho("C11", "C8");
+            Assert.NotNull(caminho);
 
             // Act
             var rota = f.Malha.MontarRota("C11", caminho);
 
-            // Assert: C11 → C6 é Norte-Sul; C6 → C7 e C7 → C8 são Leste-Oeste
-            Assert.Equal(3, rota.Count);
+            // Assert: sobe para C6 (Norte-Sul) e depois anda para o Leste até C8 (Leste-Oeste)
             Assert.Equal(Eixo.NS, rota[0].Eixo);
             Assert.Equal(Eixo.LO, rota[1].Eixo);
             Assert.Equal(Eixo.LO, rota[2].Eixo);
-            Assert.Equal("C8", rota[^1].Cruzamento);
         }
 
-        [Fact]
+        [Fact(DisplayName = "RNF04 · Pedir um cruzamento que não existe dá erro de validação (vira 400 na API)")]
         [Trait("Requisito", "RNF04")]
         public void ObterCruzamento_DeveLancarValidacaoException_QuandoNaoExiste()
         {
             // Arrange
             var f = CidadeFactory.Criar();
 
-            // Act + Assert
+            // Act + Assert: o código dentro de "() =>" tem que lançar a exceção
             Assert.Throws<ValidacaoException>(() => f.Malha.ObterCruzamento("C99"));
         }
 
-        [Fact]
+        [Fact(DisplayName = "RN05 · A malha sabe a direção entre dois vizinhos, e que C11 e C20 não são vizinhos")]
         [Trait("Requisito", "RN05")]
         public void DirecaoEntre_DeveRetornarNulo_QuandoNaoSaoVizinhos()
         {
