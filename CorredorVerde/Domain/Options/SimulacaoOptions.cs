@@ -28,13 +28,13 @@ namespace CorredorVerde.Domain.Options
         [Range(10, 5000)]
         public int TickMs { get; set; } = 100;
 
-        [Required]
+        [Required, MinLength(1)]
         public List<HospitalOptions> Hospitais { get; set; } = new();
 
-        [Required]
+        [Required, MinLength(1)]
         public List<BaseOptions> Bases { get; set; } = new();
 
-        [Required]
+        [Required, MinLength(1)]
         public List<ViaturaOptions> Viaturas { get; set; } = new();
     }
 
