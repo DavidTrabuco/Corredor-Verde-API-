@@ -1,0 +1,79 @@
+@Api = http://localhost:5080/api/v1
+
+### Malha (cruzamentos, hospitais e bases)
+GET {{Api}}/malha
+
+### Estado completo (polling da maquete)
+GET {{Api}}/estado
+
+### Só os semáforos
+GET {{Api}}/semaforos
+
+### Só as viaturas
+GET {{Api}}/viaturas
+
+### Ocorrências
+GET {{Api}}/ocorrencias
+
+### Registrar emergência da ambulância (UC03) → 201
+POST {{Api}}/ocorrencias
+Content-Type: application/json
+
+{ "tipo": "Ambulancia", "cruzamento": "C16", "criticidade": 2 }
+
+### Registrar emergência dos bombeiros → 201
+POST {{Api}}/ocorrencias
+Content-Type: application/json
+
+{ "tipo": "Bombeiros", "cruzamento": "C8", "criticidade": 1 }
+
+### Dados inválidos (RNF04) → 400
+POST {{Api}}/ocorrencias
+Content-Type: application/json
+
+{ "tipo": "Ambulancia", "cruzamento": "C99", "criticidade": 5 }
+
+### Viatura saiu de C11 rumo a C12 (UC01, UC07) → 204
+POST {{Api}}/viaturas/AMB-01/saida
+Content-Type: application/json
+
+{ "de": "C11", "para": "C12" }
+
+### Viatura chegou a C12 (UC01, UC06) → 204
+POST {{Api}}/viaturas/AMB-01/chegada
+Content-Type: application/json
+
+{ "cruzamento": "C12" }
+
+### Pode atravessar? (RN07, RN13)
+GET {{Api}}/cruzamentos/C12/pode-atravessar?eixo=LO&viaturaId=AMB-01
+
+### Ligar falha em C12 (UC09, RN13) → 204
+POST {{Api}}/cruzamentos/C12/falha
+Content-Type: application/json
+
+{ "ativa": true }
+
+### Desligar falha em C12 → 204
+POST {{Api}}/cruzamentos/C12/falha
+Content-Type: application/json
+
+{ "ativa": false }
+
+### Log completo (300 mais recentes)
+GET {{Api}}/log
+
+### Log a partir do evento 10
+GET {{Api}}/log?desde=10
+
+### Tentar apagar um evento (RNF05) → 405
+DELETE {{Api}}/log/1
+
+### Pausar e mudar a velocidade → 204
+POST {{Api}}/simulacao/controle
+Content-Type: application/json
+
+{ "pausado": false, "velocidade": 2 }
+
+### Reiniciar a simulação → 204
+POST {{Api}}/simulacao/reiniciar
