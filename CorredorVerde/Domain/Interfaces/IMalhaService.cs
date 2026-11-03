@@ -8,7 +8,7 @@ namespace CorredorVerde.Domain.Interfaces
         Cruzamento ObterCruzamento(string id);
         string? Vizinho(string id, Direcao direcao);
         Direcao? DirecaoEntre(string a, string b);
-        List<string>? MenorCaminho(string origem, string destino);
+        List<string>? MenorCaminho(string origem, string destino, bool passarPelasFalhas = false);
         List<PassoRota> MontarRota(string origem, List<string> caminho);
         Hospital? HospitalMaisProximo(string cruzamento);
     }

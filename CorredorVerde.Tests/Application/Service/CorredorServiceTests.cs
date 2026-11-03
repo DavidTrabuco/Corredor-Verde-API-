@@ -108,26 +108,48 @@ namespace CorredorVerde.Tests.Application.Service
             Assert.True(f.LogTem("Conflito em C13: AMB-01 (Leste-Oeste) passa antes de BOM-01 (Norte-Sul), mesma criticidade (2); OC-001 foi registrada primeiro."));
         }
 
-        [Fact(DisplayName = "RN13 · Sem caminho possível, a viatura fica aguardando e o sistema avisa uma vez, sem travar")]
+        [Fact(DisplayName = "RN13 · Sem caminho possível, a viatura é avisada e aguarda 1 s, sem travar")]
         [Trait("Requisito", "RN13")]
         [Trait("Requisito", "RNF03")]
-        public void IniciarTrecho_DeveMarcarSemRotaEAvisarUmaVez_QuandoNaoHaCaminho()
+        public void IniciarTrecho_DeveMarcarSemRotaEAvisar_QuandoNaoHaCaminho()
         {
             // Arrange: os três vizinhos de C15 em falha
             var f = CidadeFactory.Criar();
             f.ColocarEmFalha("C10", "C14", "C20");
             var ambulancia = f.ColocarEmEmergencia("AMB-01", de: "C11", ate: "C15", criticidade: 1);
 
-            // Act: tenta duas vezes
+            // Act: primeira tentativa
             var resultado = f.Corredor.IniciarTrecho(ambulancia);
-            f.Corredor.IniciarTrecho(ambulancia);
 
-            // Assert: fica sem rota, tenta de novo em 1 s e o aviso aparece uma vez só
+            // Assert: fica sem rota, tenta de novo em 1 s e o sistema avisa
             Assert.Equal(ResultadoTrecho.SemCaminho, resultado);
             Assert.True(ambulancia.SemRota);
             Assert.Equal(1.0, ambulancia.ProximaTentativaSeg);
             Assert.True(f.NenhumCruzamentoReservado());
             Assert.Equal(1, f.QuantosLogsCom("RNF03"));
+        }
+
+        [Fact(DisplayName = "RN13 · Com uma linha inteira de semáforos em falha, na nova tentativa a viatura passa com cautela")]
+        [Trait("Requisito", "RN13")]
+        [Trait("Requisito", "RN05")]
+        [Trait("Requisito", "RNF03")]
+        public void IniciarTrecho_DevePassarPelaFalha_QuandoJaEsperouENaoHaDesvio()
+        {
+            // Arrange: a coluna do meio (C3, C8, C13, C18) toda em falha separa C11 de C15
+            var f = CidadeFactory.Criar();
+            f.ColocarEmFalha("C3", "C8", "C13", "C18");
+            var ambulancia = f.ColocarEmEmergencia("AMB-01", de: "C11", ate: "C15", criticidade: 1);
+
+            // Act: a primeira tentativa avisa e aguarda; a segunda é a nova tentativa depois de 1 s
+            var primeira = f.Corredor.IniciarTrecho(ambulancia);
+            var segunda = f.Corredor.IniciarTrecho(ambulancia);
+
+            // Assert: na segunda, o corredor abre pelo menor caminho, passando só por C13 em falha
+            Assert.Equal(ResultadoTrecho.SemCaminho, primeira);
+            Assert.Equal(ResultadoTrecho.CorredorAberto, segunda);
+            Assert.False(ambulancia.SemRota);
+            Assert.Equal("C12 → C13 → C14 → C15", f.RotaComoTexto(ambulancia));
+            Assert.True(f.LogTem("Sem desvio de C11 até C15: AMB-01 passa com cautela por C13 (semáforo em falha)."));
         }
 
         [Fact(DisplayName = "RN06 · Se a ocorrência é onde a viatura já está, não há corredor para abrir")]

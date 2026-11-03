@@ -263,6 +263,9 @@ namespace CorredorVerde.Application.Service
 
                 var origem = viatura.IndoPara ?? viatura.Cruzamento;
                 var caminho = _malha.MenorCaminho(origem, viatura.Base);
+                // RN13: já esperou 1 s sem desvio, então volta passando com cautela pelos cruzamentos em falha
+                if (caminho is null && viatura.SemRota)
+                    caminho = _malha.MenorCaminho(origem, viatura.Base, passarPelasFalhas: true);
                 if (caminho is null)
                 {
                     // O temporizador tenta de novo em 1 s

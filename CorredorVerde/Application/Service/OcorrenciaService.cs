@@ -78,7 +78,9 @@ namespace CorredorVerde.Application.Service
                 {
                     // RN04: já calcula o hospital para mostrar o trecho 2 previsto (linha tracejada na maquete)
                     oc.Hospital = _malha.HospitalMaisProximo(local);
-                    var trecho2 = oc.Hospital is null ? null : _malha.MenorCaminho(local, oc.Hospital.Cruzamento);
+                    var trecho2 = oc.Hospital is null ? null
+                        : _malha.MenorCaminho(local, oc.Hospital.Cruzamento)
+                          ?? _malha.MenorCaminho(local, oc.Hospital.Cruzamento, passarPelasFalhas: true);
                     v.Previsao = new List<string>();
                     if (trecho2 is not null)
                     {

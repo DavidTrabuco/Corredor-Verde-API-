@@ -55,8 +55,9 @@ namespace CorredorVerde.Application.Service
         }
 
         // BFS na ordem N, L, S, O. Pula cruzamentos em falha, menos o destino.
+        // Com passarPelasFalhas = true (RN13: quando não há desvio), a mesma BFS também passa pelos cruzamentos em falha.
         // Retorna os cruzamentos depois da origem; lista vazia se origem == destino; null se não há caminho.
-        public List<string>? MenorCaminho(string origem, string destino)
+        public List<string>? MenorCaminho(string origem, string destino, bool passarPelasFalhas = false)
         {
             lock (_cidade.Trava)
             {
@@ -78,7 +79,7 @@ namespace CorredorVerde.Application.Service
                         var vizinho = Vizinho(atual, direcao);
                         if (vizinho is null || anterior.ContainsKey(vizinho))
                             continue;
-                        if (vizinho != destino && _cidade.Cruzamentos[vizinho].Semaforo.EmFalha)
+                        if (!passarPelasFalhas && vizinho != destino && _cidade.Cruzamentos[vizinho].Semaforo.EmFalha)
                             continue;
 
                         anterior[vizinho] = atual;
@@ -128,6 +129,20 @@ namespace CorredorVerde.Application.Service
                     {
                         melhor = hospital;
                         melhorDistancia = caminho.Count;
+                    }
+                }
+
+                // Nenhum hospital alcançável desviando das falhas: escolhe passando por elas (RN13)
+                if (melhor is null)
+                {
+                    foreach (var hospital in _cidade.Hospitais)
+                    {
+                        var caminho = MenorCaminho(cruzamento, hospital.Cruzamento, passarPelasFalhas: true);
+                        if (caminho is not null && caminho.Count < melhorDistancia)
+                        {
+                            melhor = hospital;
+                            melhorDistancia = caminho.Count;
+                        }
                     }
                 }
 

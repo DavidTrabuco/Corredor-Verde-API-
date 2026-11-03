@@ -34,6 +34,20 @@ namespace CorredorVerde.Application.Service
                 var origem = viatura.IndoPara ?? viatura.Cruzamento;
                 var caminho = _malha.MenorCaminho(origem, destino);
 
+                // RN13: sem desvio, a viatura é avisada e aguarda 1 s (bloco abaixo).
+                // Se na nova tentativa ainda não houver desvio, ela passa com cautela pelos cruzamentos em falha.
+                if (caminho is null && viatura.SemRota)
+                {
+                    caminho = _malha.MenorCaminho(origem, destino, passarPelasFalhas: true);
+                    if (caminho is not null)
+                    {
+                        var emFalha = caminho.Where(id => id != destino && _cidade.Cruzamentos[id].Semaforo.EmFalha);
+                        _log.Registrar(new[] { "RN13", "UC04" },
+                            $"Sem desvio de {origem} até {destino}: {viatura.Id} passa com cautela por {string.Join(", ", emFalha)} (semáforo em falha).",
+                            TipoEvento.Alerta);
+                    }
+                }
+
                 if (caminho is null)
                 {
                     viatura.SemRota = true;
