@@ -11,17 +11,18 @@ namespace CorredorVerde.Tests.Application.Service
         [Trait("Requisito", "UC05")]
         public void ChegouAoDestino_DeveComecarOAtendimento_QuandoChegaAoLocalDaEmergencia()
         {
-            // Arrange: AMB-01 saiu da Base do SAMU (C11) para a ocorrência em C15
+            // Arrange: AMB-01 saiu da Base do SAMU (C11) para a ocorrência em C15, e o relógio já está em 10 s
             var f = CidadeFactory.Criar();
             var ambulancia = f.ColocarEmEmergencia("AMB-01", de: "C11", ate: "C15", criticidade: 1);
             var ocorrencia = f.Cidade.Ocorrencias[0];
+            f.Cidade.TempoSeg = 10.0;
 
             // Act: a ambulância chega a C15
             f.Frota.ChegouAoDestino(ambulancia);
 
-            // Assert: está em atendimento até 4 s depois, e a ocorrência também
+            // Assert: está em atendimento até 4 s depois de agora (10 + 4), e a ocorrência também
             Assert.Equal(ModoViatura.Atendimento, ambulancia.Modo);
-            Assert.Equal(4.0, ambulancia.AtendimentoAteSeg);
+            Assert.Equal(14.0, ambulancia.AtendimentoAteSeg);
             Assert.Equal(StatusOcorrencia.EmAtendimento, ocorrencia.Status);
             Assert.True(f.LogTem("AMB-01 chegou ao local de OC-001 (C15). Atendimento de 4 s."));
         }
@@ -60,13 +61,14 @@ namespace CorredorVerde.Tests.Application.Service
             ocorrencia.Hospital = f.Cidade.Hospitais[1];
             ambulancia.Trecho = 2;
             ambulancia.Destino = "C18";
+            f.Cidade.TempoSeg = 25.0;
 
-            // Act: a ambulância chega ao hospital
+            // Act: a ambulância chega ao hospital, com o relógio em 25 s
             f.Frota.ChegouAoDestino(ambulancia);
 
-            // Assert: ocorrência encerrada agora, e a ambulância libera para patrulhar
+            // Assert: ocorrência encerrada agora (25 s), e a ambulância libera para patrulhar
             Assert.Equal(StatusOcorrencia.Encerrada, ocorrencia.Status);
-            Assert.Equal(0.0, ocorrencia.EncerradaEmSeg);
+            Assert.Equal(25.0, ocorrencia.EncerradaEmSeg);
             Assert.Equal(ModoViatura.Patrulha, ambulancia.Modo);
             Assert.True(f.LogTem("AMB-01 chegou ao Hospital Sul (C18). OC-001 encerrada."));
         }
