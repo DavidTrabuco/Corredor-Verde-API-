@@ -52,9 +52,9 @@ namespace CorredorVerde.Tests.Application.Service
             // Act: o semáforo de C13 falha
             f.Falhas.Definir("C13", ativa: true);
 
-            // Assert: a rota nova não passa por C13, e a reserva antiga de C13 foi solta
+            // Assert: a rota nova dá a volta por cima (C6 a C10) sem passar por C13, e a reserva antiga de C13 foi solta
             Assert.True(f.LogTem("A rota de AMB-01 passava por C13. Recalculando para desviar."));
-            Assert.DoesNotContain("C13", f.RotaComoTexto(ambulancia));
+            Assert.Equal("C6 → C7 → C8 → C9 → C10 → C15", f.RotaComoTexto(ambulancia));
             Assert.Equal("nenhuma", f.ReservasComoTexto("C13"));
         }
 
