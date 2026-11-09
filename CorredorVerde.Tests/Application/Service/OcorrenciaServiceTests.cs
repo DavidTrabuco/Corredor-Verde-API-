@@ -18,9 +18,12 @@ namespace CorredorVerde.Tests.Application.Service
             // Act: emergência em C15, a 4 quarteirões das duas
             var ocorrencia = f.Emergencias.Registrar("Ambulancia", "C15", 1);
 
-            // Assert: vai a AMB-01, e o log explica a escolha
+            // Assert: vai a AMB-01, AMB-02 continua livre na base, e o log explica a escolha
             Assert.Equal("AMB-01", ocorrencia.ViaturaId);
             Assert.Equal(ModoViatura.Emergencia, f.PegarViatura("AMB-01").Modo);
+            Assert.Equal(ModoViatura.Reserva, f.PegarViatura("AMB-02").Modo);
+            Assert.Equal("C11", f.PegarViatura("AMB-02").Cruzamento);
+            Assert.Single(f.Cidade.Ocorrencias);
             Assert.True(f.LogTem("AMB-01 é a viatura livre mais perto de C15 (4 quarteirões; AMB-02 a 4 quarteirões)."));
         }
 
