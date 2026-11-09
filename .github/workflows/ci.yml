@@ -1,0 +1,55 @@
+name: CI
+
+# Roda em todo push de branch que não seja a main e em todo PR para a main.
+# Se build ou teste falhar, o check fica vermelho e o PR não pode ser mesclado
+# (exige a regra de proteção da branch main, configurada em Settings > Branches).
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-e-testes:
+    # Matriz ubuntu + windows (RNF13)
+    name: Build e testes (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restaurar pacotes
+        run: dotnet restore CorredorVerde.slnx
+
+      - name: Compilar
+        run: dotnet build CorredorVerde.slnx --configuration Release --no-restore
+
+      # Cobertura de código (RNF11)
+      - name: Testar com cobertura
+        run: >
+          dotnet test CorredorVerde.slnx --configuration Release --no-build
+          --collect:"XPlat Code Coverage" --results-directory ./resultados
+          --logger "trx;LogFileName=testes.trx"
+
+      - name: Guardar resultados dos testes e cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resultados-${{ matrix.os }}
+          path: resultados/**
+          if-no-files-found: ignore
