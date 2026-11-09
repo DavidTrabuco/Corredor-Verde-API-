@@ -15,6 +15,8 @@ namespace CorredorVerde.Tests.TestSupport
         public IMalhaService Malha { get; }
         public ISemaforoService Semaforo { get; }
         public ICorredorService Corredor { get; }
+        // "Frota" e não "Viatura", porque Viatura já é o nome do tipo devolvido por PegarViatura
+        public IViaturaService Frota { get; }
 
         private CidadeFactory(SimulacaoOptions opcoes)
         {
@@ -23,6 +25,7 @@ namespace CorredorVerde.Tests.TestSupport
             Malha = new MalhaService(Cidade);
             Semaforo = new SemaforoService(Cidade, Malha, Log);
             Corredor = new CorredorService(Cidade, Malha, Semaforo, Log);
+            Frota = new ViaturaService(Cidade, Malha, Semaforo, Corredor, Log);
         }
 
         // Cria a cidade com as opções do appsettings.json; "ajustar" permite trocar algum valor
