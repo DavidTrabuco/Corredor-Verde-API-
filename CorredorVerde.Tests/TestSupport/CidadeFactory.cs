@@ -19,6 +19,8 @@ namespace CorredorVerde.Tests.TestSupport
         public IViaturaService Frota { get; }
         // "Emergencias" e não "Ocorrencia", porque Ocorrencia já é o nome do tipo da entidade
         public IOcorrenciaService Emergencias { get; }
+        public IFalhaService Falhas { get; }
+        public ITemporizadorService Temporizador { get; }
 
         private CidadeFactory(SimulacaoOptions opcoes)
         {
@@ -29,6 +31,8 @@ namespace CorredorVerde.Tests.TestSupport
             Corredor = new CorredorService(Cidade, Malha, Semaforo, Log);
             Frota = new ViaturaService(Cidade, Malha, Semaforo, Corredor, Log);
             Emergencias = new OcorrenciaService(Cidade, Malha, Frota, Log);
+            Falhas = new FalhaService(Cidade, Malha, Semaforo, Corredor, Frota, Log);
+            Temporizador = new TemporizadorService(Cidade, Semaforo, Frota);
         }
 
         // Cria a cidade com as opções do appsettings.json; "ajustar" permite trocar algum valor
