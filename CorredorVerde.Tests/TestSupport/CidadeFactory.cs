@@ -3,6 +3,7 @@ using CorredorVerde.Domain.Entidades;
 using CorredorVerde.Domain.Enums;
 using CorredorVerde.Domain.Interfaces;
 using CorredorVerde.Domain.Options;
+using Microsoft.Extensions.Options;
 
 namespace CorredorVerde.Tests.TestSupport
 {
@@ -21,6 +22,7 @@ namespace CorredorVerde.Tests.TestSupport
         public IOcorrenciaService Emergencias { get; }
         public IFalhaService Falhas { get; }
         public ITemporizadorService Temporizador { get; }
+        public ISimulacaoService Simulacao { get; }
 
         private CidadeFactory(SimulacaoOptions opcoes)
         {
@@ -33,6 +35,7 @@ namespace CorredorVerde.Tests.TestSupport
             Emergencias = new OcorrenciaService(Cidade, Malha, Frota, Log);
             Falhas = new FalhaService(Cidade, Malha, Semaforo, Corredor, Frota, Log);
             Temporizador = new TemporizadorService(Cidade, Semaforo, Frota);
+            Simulacao = new SimulacaoService(Cidade, Semaforo, Log, Options.Create(opcoes));
         }
 
         // Cria a cidade com as opções do appsettings.json; "ajustar" permite trocar algum valor
