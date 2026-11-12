@@ -1,6 +1,7 @@
 using CorredorVerde.Domain.Enums;
 using CorredorVerde.Domain.Exceptions;
 using CorredorVerde.Tests.TestSupport;
+using static CorredorVerde.Tests.TestSupport.IdsDasViaturas;
 
 namespace CorredorVerde.Tests.Application.Service
 {
@@ -26,7 +27,7 @@ namespace CorredorVerde.Tests.Application.Service
             Assert.Equal(2, malha.Bases.Count);
         }
 
-        [Fact(DisplayName = "UC01 · O estado começa parado em 0 s, na velocidade 1, com tudo livre")]
+        [Fact(DisplayName = "UC01 · O estado começa em 0 s, na velocidade 1, sem pausa e com todas as viaturas livres")]
         [Trait("Requisito", "UC01")]
         public void Estado_DeveComecarLimpo_QuandoASimulacaoAcabaDeIniciar()
         {
@@ -36,28 +37,38 @@ namespace CorredorVerde.Tests.Application.Service
             // Act
             var estado = f.Simulacao.Estado();
 
-            // Assert
+            // Assert: relógio zerado, rodando e sem nada acontecendo
             Assert.Equal(0.0, estado.TempoSeg);
             Assert.False(estado.Pausado);
             Assert.Equal(1, estado.Velocidade);
             Assert.Equal(20, estado.Semaforos.Count);
-            Assert.Equal(4, estado.Viaturas.Count);
             Assert.Empty(estado.Ocorrencias);
+
+            // Assert: as quatro viaturas estão livres, cada uma no modo do seu papel, sem ocorrência
+            Assert.Equal(4, estado.Viaturas.Count);
+            Assert.Equal(ModoViatura.Patrulha, estado.Viaturas.Find(v => v.Id == AmbulanciaPatrulha)?.Modo);
+            Assert.Equal(ModoViatura.Reserva, estado.Viaturas.Find(v => v.Id == AmbulanciaReserva)?.Modo);
+            Assert.Equal(ModoViatura.Patrulha, estado.Viaturas.Find(v => v.Id == BombeirosPatrulha)?.Modo);
+            Assert.Equal(ModoViatura.Reserva, estado.Viaturas.Find(v => v.Id == BombeirosReserva)?.Modo);
+            foreach (var viatura in estado.Viaturas)
+                Assert.Null(viatura.OcorrenciaId);
         }
 
-        [Fact(DisplayName = "UC01 · O tempo do estado é arredondado em 2 casas")]
+        [Theory(DisplayName = "UC01 · O tempo do estado é arredondado para o valor mais próximo, em 2 casas")]
         [Trait("Requisito", "UC01")]
-        public void Estado_DeveArredondarOTempo_QuandoOTempoTemMuitasCasas()
+        [InlineData(12.3456, 12.35)]
+        [InlineData(12.3412, 12.34)]
+        public void Estado_DeveArredondarOTempo_QuandoOTempoTemMuitasCasas(double tempo, double esperado)
         {
-            // Arrange
+            // Arrange: 12,3456 passa da metade (sobe) e 12,3412 não passa (fica), então só o arredondamento de verdade acerta os dois
             var f = CidadeFactory.Criar();
-            f.Cidade.TempoSeg = 12.3456;
+            f.Cidade.TempoSeg = tempo;
 
             // Act
             var estado = f.Simulacao.Estado();
 
             // Assert
-            Assert.Equal(12.35, estado.TempoSeg);
+            Assert.Equal(esperado, estado.TempoSeg);
         }
 
         [Fact(DisplayName = "UC03 · Depois de registrar uma emergência, o estado mostra a ocorrência e a viatura em emergência")]
@@ -78,7 +89,7 @@ namespace CorredorVerde.Tests.Application.Service
             Assert.Equal(StatusOcorrencia.ACaminho, estado.Ocorrencias[0].Status);
             Assert.Equal("Hospital Sul", estado.Ocorrencias[0].Hospital);
 
-            var ambulancia = estado.Viaturas.Find(v => v.Id == "AMB-01");
+            var ambulancia = estado.Viaturas.Find(v => v.Id == AmbulanciaPatrulha);
             Assert.NotNull(ambulancia);
             Assert.Equal(ModoViatura.Emergencia, ambulancia.Modo);
             Assert.Equal("OC-001", ambulancia.OcorrenciaId);
@@ -91,7 +102,7 @@ namespace CorredorVerde.Tests.Application.Service
         {
             // Arrange: o corredor de AMB-01 está aberto de C11 a C15
             var f = CidadeFactory.Criar();
-            var ambulancia = f.ColocarEmEmergencia("AMB-01", de: "C11", ate: "C15", criticidade: 1);
+            var ambulancia = f.ColocarEmEmergencia(AmbulanciaPatrulha, de: "C11", ate: "C15", criticidade: 1);
             f.Frota.IniciarTrecho(ambulancia);
 
             // Act
@@ -102,7 +113,7 @@ namespace CorredorVerde.Tests.Application.Service
             var c1 = semaforos.Find(s => s.Cruzamento == "C1");
             Assert.NotNull(c13);
             Assert.NotNull(c1);
-            Assert.Equal("AMB-01", c13.Vencedor);
+            Assert.Equal(AmbulanciaPatrulha, c13.Vencedor);
             Assert.Single(c13.Reservas);
             Assert.Null(c1.Vencedor);
             Assert.Empty(c1.Reservas);
@@ -135,7 +146,7 @@ namespace CorredorVerde.Tests.Application.Service
         {
             // Arrange: BOM-01 chegou ao local em 10 s, então o atendimento vai até 14 s
             var f = CidadeFactory.Criar();
-            var bombeiros = f.ColocarEmEmergencia("BOM-01", de: "C15", ate: "C15", criticidade: 2);
+            var bombeiros = f.ColocarEmEmergencia(BombeirosPatrulha, de: "C15", ate: "C15", criticidade: 2);
             f.Cidade.TempoSeg = 10.0;
             f.Frota.ChegouAoDestino(bombeiros);
 
@@ -144,7 +155,7 @@ namespace CorredorVerde.Tests.Application.Service
             var viaturas = f.Simulacao.Viaturas();
 
             // Assert: faltam 2,5 s
-            var resposta = viaturas.Find(v => v.Id == "BOM-01");
+            var resposta = viaturas.Find(v => v.Id == BombeirosPatrulha);
             Assert.NotNull(resposta);
             Assert.Equal(ModoViatura.Atendimento, resposta.Modo);
             Assert.Equal(2.5, resposta.AtendimentoRestanteSeg);
@@ -198,15 +209,23 @@ namespace CorredorVerde.Tests.Application.Service
             // Act
             f.Simulacao.Reiniciar();
 
-            // Assert: sem ocorrências, relógio zerado, velocidade 1, viaturas na base e só um evento no log
+            // Assert: sem ocorrências, relógio zerado, velocidade 1 e só um evento no log
             Assert.Empty(f.Cidade.Ocorrencias);
             Assert.Equal(0.0, f.Cidade.TempoSeg);
             Assert.False(f.Cidade.Pausado);
             Assert.Equal(1, f.Cidade.Velocidade);
-            Assert.Equal(ModoViatura.Patrulha, f.PegarViatura("AMB-01").Modo);
-            Assert.Equal("C11", f.PegarViatura("AMB-01").Cruzamento);
             Assert.Single(f.Cidade.Log);
-            Assert.True(f.LogTem("Simulação pronta: AMB-01 e BOM-01 patrulhando; AMB-02 e BOM-02 de reserva na Base do SAMU (C11) e no Quartel dos Bombeiros (C20)."));
+            Assert.True(f.LogTem($"Simulação pronta: {AmbulanciaPatrulha} e {BombeirosPatrulha} patrulhando; {AmbulanciaReserva} e {BombeirosReserva} de reserva na Base do SAMU (C11) e no Quartel dos Bombeiros (C20)."));
+
+            // Assert: as quatro viaturas voltaram para a base, cada uma no modo do seu papel
+            Assert.Equal(ModoViatura.Patrulha, f.PegarViatura(AmbulanciaPatrulha).Modo);
+            Assert.Equal("C11", f.PegarViatura(AmbulanciaPatrulha).Cruzamento);
+            Assert.Equal(ModoViatura.Reserva, f.PegarViatura(AmbulanciaReserva).Modo);
+            Assert.Equal("C11", f.PegarViatura(AmbulanciaReserva).Cruzamento);
+            Assert.Equal(ModoViatura.Patrulha, f.PegarViatura(BombeirosPatrulha).Modo);
+            Assert.Equal("C20", f.PegarViatura(BombeirosPatrulha).Cruzamento);
+            Assert.Equal(ModoViatura.Reserva, f.PegarViatura(BombeirosReserva).Modo);
+            Assert.Equal("C20", f.PegarViatura(BombeirosReserva).Cruzamento);
         }
     }
 }
