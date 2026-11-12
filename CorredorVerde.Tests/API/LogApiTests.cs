@@ -15,18 +15,18 @@ namespace CorredorVerde.Tests.API
         {
             // Arrange
             using var api = new ApiFactory();
-            var cliente = api.CreateClient();
+            var clienteHttp = api.CreateClient();
 
             // Act
-            var resposta = await cliente.GetAsync("/api/v1/log");
+            var respostaHttp = await clienteHttp.GetAsync("/api/v1/log");
 
             // Assert
-            Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
-            var eventos = await ApiFactory.Ler<List<EventoLogResponse>>(resposta);
-            Assert.NotNull(eventos);
-            Assert.Single(eventos);
-            Assert.Equal(TipoEvento.Info, eventos[0].Tipo);
-            Assert.StartsWith("Simulação pronta:", eventos[0].Mensagem);
+            Assert.Equal(HttpStatusCode.OK, respostaHttp.StatusCode);
+            var eventosDoLog = await ApiFactory.Ler<List<EventoLogResponse>>(respostaHttp);
+            Assert.NotNull(eventosDoLog);
+            Assert.Single(eventosDoLog);
+            Assert.Equal(TipoEvento.Info, eventosDoLog[0].Tipo);
+            Assert.StartsWith("Simulação pronta:", eventosDoLog[0].Mensagem);
         }
 
         [Fact(DisplayName = "RN14 · Com \"desde\", o log devolve só os eventos depois daquele número")]
@@ -34,48 +34,48 @@ namespace CorredorVerde.Tests.API
         [Trait("Requisito", "UC10")]
         public async Task Listar_DeveDevolverSoOsNovos_QuandoInformaDesde()
         {
-            // Arrange: a maquete já viu o primeiro evento; depois acontece uma chamada
+            // Arrange: a maquete já viu o primeiro evento; depois acontece uma chamada (o POST de pausar é conferido)
             using var api = new ApiFactory();
-            var cliente = api.CreateClient();
-            var primeiros = await ApiFactory.Ler<List<EventoLogResponse>>(await cliente.GetAsync("/api/v1/log"));
-            Assert.NotNull(primeiros);
-            var ultimoVisto = primeiros[primeiros.Count - 1].Seq;
-            await cliente.PostAsJsonAsync("/api/v1/simulacao/controle", new { pausado = true });
+            var clienteHttp = api.CreateClient();
+            var eventosIniciais = await ApiFactory.LerLog(clienteHttp);
+            var ultimoSeqVisto = eventosIniciais[eventosIniciais.Count - 1].Seq;
+            var respostaDoControle = await clienteHttp.PostAsJsonAsync("/api/v1/simulacao/controle", new { pausado = true });
+            Assert.Equal(HttpStatusCode.NoContent, respostaDoControle.StatusCode);
 
             // Act
-            var resposta = await cliente.GetAsync($"/api/v1/log?desde={ultimoVisto}");
+            var respostaHttp = await clienteHttp.GetAsync($"/api/v1/log?desde={ultimoSeqVisto}");
 
-            // Assert: só o evento novo, e a lista completa continua com os dois
-            var novos = await ApiFactory.Ler<List<EventoLogResponse>>(resposta);
-            Assert.NotNull(novos);
-            Assert.Single(novos);
-            Assert.Equal(TipoEvento.Api, novos[0].Tipo);
-            Assert.True(novos[0].Seq > ultimoVisto);
+            // Assert: só o evento novo, depois do número informado
+            var eventosNovos = await ApiFactory.Ler<List<EventoLogResponse>>(respostaHttp);
+            Assert.NotNull(eventosNovos);
+            Assert.Single(eventosNovos);
+            Assert.Equal(TipoEvento.Api, eventosNovos[0].Tipo);
+            Assert.True(eventosNovos[0].Seq > ultimoSeqVisto);
         }
 
         [Theory(DisplayName = "RNF05 · O log é somente leitura: PUT e DELETE devolvem 405")]
         [Trait("Requisito", "RNF05")]
         [InlineData("PUT")]
         [InlineData("DELETE")]
-        public async Task Alterar_DeveDevolver405_QuandoTentaMexerNoLog(string metodo)
+        public async Task Alterar_DeveDevolver405_QuandoTentaMexerNoLog(string metodoHttp)
         {
             // Arrange
             using var api = new ApiFactory();
-            var cliente = api.CreateClient();
-            var pedido = new HttpRequestMessage(new HttpMethod(metodo), "/api/v1/log/1");
+            var clienteHttp = api.CreateClient();
+            var requisicaoHttp = new HttpRequestMessage(new HttpMethod(metodoHttp), "/api/v1/log/1");
 
             // Act
-            var resposta = await cliente.SendAsync(pedido);
+            var respostaHttp = await clienteHttp.SendAsync(requisicaoHttp);
 
             // Assert: 405, só GET permitido e o evento da tentativa fica registrado
-            Assert.Equal(HttpStatusCode.MethodNotAllowed, resposta.StatusCode);
-            Assert.Equal("GET", string.Join(",", resposta.Content.Headers.Allow));
-            var problema = await ApiFactory.Ler<ProblemDetails>(resposta);
-            Assert.NotNull(problema);
-            Assert.Equal("O log de eventos é somente leitura.", problema.Detail);
-            var evento = api.Cidade.Log[api.Cidade.Log.Count - 1];
-            Assert.Contains("RNF05", evento.Tags);
-            Assert.Equal($"{metodo} /api/v1/log/1 → 405: o log de eventos não pode ser alterado.", evento.Mensagem);
+            Assert.Equal(HttpStatusCode.MethodNotAllowed, respostaHttp.StatusCode);
+            Assert.Equal("GET", string.Join(",", respostaHttp.Content.Headers.Allow));
+            var detalhesDoErro = await ApiFactory.Ler<ProblemDetails>(respostaHttp);
+            Assert.NotNull(detalhesDoErro);
+            Assert.Equal("O log de eventos é somente leitura.", detalhesDoErro.Detail);
+            var eventoDaTentativa = api.Cidade.Log[api.Cidade.Log.Count - 1];
+            Assert.Contains("RNF05", eventoDaTentativa.Tags);
+            Assert.Equal($"{metodoHttp} /api/v1/log/1 → 405: o log de eventos não pode ser alterado.", eventoDaTentativa.Mensagem);
         }
     }
 }

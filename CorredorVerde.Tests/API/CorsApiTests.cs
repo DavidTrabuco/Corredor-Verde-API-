@@ -10,35 +10,35 @@ namespace CorredorVerde.Tests.API
         [Trait("Requisito", "UC01")]
         public async Task Get_DeveLiberarAOrigem_QuandoAChamadaVemDaMaquete()
         {
-            // Arrange
+            // Arrange: uma requisição GET ao estado, vinda da origem da maquete
             using var api = new ApiFactory();
-            var cliente = api.CreateClient();
-            var pedido = new HttpRequestMessage(HttpMethod.Get, "/api/v1/estado");
-            pedido.Headers.Add("Origin", "http://localhost:5173");
+            var clienteHttp = api.CreateClient();
+            var requisicaoHttp = new HttpRequestMessage(HttpMethod.Get, "/api/v1/estado");
+            requisicaoHttp.Headers.Add("Origin", "http://localhost:5173");
 
             // Act
-            var resposta = await cliente.SendAsync(pedido);
+            var respostaHttp = await clienteHttp.SendAsync(requisicaoHttp);
 
             // Assert
-            Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
-            Assert.Equal("http://localhost:5173", string.Join(",", resposta.Headers.GetValues("Access-Control-Allow-Origin")));
+            Assert.Equal(HttpStatusCode.OK, respostaHttp.StatusCode);
+            Assert.Equal("http://localhost:5173", string.Join(",", respostaHttp.Headers.GetValues("Access-Control-Allow-Origin")));
         }
 
         [Fact(DisplayName = "UC01 · Outra origem não recebe a liberação")]
         [Trait("Requisito", "UC01")]
         public async Task Get_NaoDeveLiberarAOrigem_QuandoAChamadaVemDeOutroSite()
         {
-            // Arrange
+            // Arrange: uma requisição GET ao estado, vinda de um site desconhecido
             using var api = new ApiFactory();
-            var cliente = api.CreateClient();
-            var pedido = new HttpRequestMessage(HttpMethod.Get, "/api/v1/estado");
-            pedido.Headers.Add("Origin", "http://site-desconhecido.com");
+            var clienteHttp = api.CreateClient();
+            var requisicaoHttp = new HttpRequestMessage(HttpMethod.Get, "/api/v1/estado");
+            requisicaoHttp.Headers.Add("Origin", "http://site-desconhecido.com");
 
             // Act
-            var resposta = await cliente.SendAsync(pedido);
+            var respostaHttp = await clienteHttp.SendAsync(requisicaoHttp);
 
             // Assert
-            Assert.False(resposta.Headers.Contains("Access-Control-Allow-Origin"));
+            Assert.False(respostaHttp.Headers.Contains("Access-Control-Allow-Origin"));
         }
     }
 }
