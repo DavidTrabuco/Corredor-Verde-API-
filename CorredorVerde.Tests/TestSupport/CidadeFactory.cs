@@ -200,10 +200,10 @@ namespace CorredorVerde.Tests.TestSupport
             },
             Viaturas =
             {
-                new ViaturaOptions { Id = "AMB-01", Tipo = TipoViatura.Ambulancia, Papel = PapelViatura.Patrulha },
-                new ViaturaOptions { Id = "AMB-02", Tipo = TipoViatura.Ambulancia, Papel = PapelViatura.Reserva },
-                new ViaturaOptions { Id = "BOM-01", Tipo = TipoViatura.Bombeiros, Papel = PapelViatura.Patrulha },
-                new ViaturaOptions { Id = "BOM-02", Tipo = TipoViatura.Bombeiros, Papel = PapelViatura.Reserva }
+                new ViaturaOptions { Id = IdsDasViaturas.AmbulanciaPatrulha, Tipo = TipoViatura.Ambulancia, Papel = PapelViatura.Patrulha },
+                new ViaturaOptions { Id = IdsDasViaturas.AmbulanciaReserva, Tipo = TipoViatura.Ambulancia, Papel = PapelViatura.Reserva },
+                new ViaturaOptions { Id = IdsDasViaturas.BombeirosPatrulha, Tipo = TipoViatura.Bombeiros, Papel = PapelViatura.Patrulha },
+                new ViaturaOptions { Id = IdsDasViaturas.BombeirosReserva, Tipo = TipoViatura.Bombeiros, Papel = PapelViatura.Reserva }
             }
         };
     }
