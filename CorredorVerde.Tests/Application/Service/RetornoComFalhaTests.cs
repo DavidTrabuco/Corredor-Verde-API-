@@ -71,22 +71,46 @@ namespace CorredorVerde.Tests.Application.Service
             Assert.True(f.NenhumCruzamentoReservado());
         }
 
-        [Fact(DisplayName = "RN13 · Falha no cruzamento em que a viatura já está entrando não muda a rota de volta")]
+        [Fact(DisplayName = "RN13 · Falha no cruzamento em que a viatura já está entrando não muda a rota de volta, que continua depois da chegada")]
         [Trait("Requisito", "RN13")]
         public void Definir_NaoDeveMudarARotaDeVolta_QuandoAViaturaJaEstaEntrandoNoCruzamento()
         {
-            // Arrange: BOM-02 voltando; ela já saiu de C1 em direção ao primeiro cruzamento da rota
+            // Arrange: BOM-02 voltando; ela já saiu de C1 em direção a C2, o primeiro cruzamento da rota
             var f = CidadeFactory.Criar();
             var reserva = ReservaVoltandoDe(f, "C1");
-            var primeiro = reserva.Rota[0].Cruzamento;
-            f.Frota.Saida("BOM-02", de: "C1", para: primeiro);
-            var rotaAntes = f.RotaComoTexto(reserva);
+            f.Frota.Saida("BOM-02", de: "C1", para: "C2");
+            Assert.Equal("C2 → C3 → C4 → C5 → C10 → C15 → C20", f.RotaComoTexto(reserva));
 
-            // Act: justo esse cruzamento entra em falha
-            f.Falhas.Definir(primeiro, ativa: true);
+            // Act: justo C2 entra em falha
+            f.Falhas.Definir("C2", ativa: true);
 
             // Assert: segue com cautela pela mesma rota
-            Assert.Equal(rotaAntes, f.RotaComoTexto(reserva));
+            Assert.Equal("C2 → C3 → C4 → C5 → C10 → C15 → C20", f.RotaComoTexto(reserva));
+
+            // Act: a viatura chega ao centro de C2
+            f.Frota.Chegada("BOM-02", "C2");
+
+            // Assert: continua voltando pelo resto da rota, sem ficar sem caminho
+            Assert.Equal(ModoViatura.Retorno, reserva.Modo);
+            Assert.False(reserva.SemRota);
+            Assert.Equal("C3 → C4 → C5 → C10 → C15 → C20", f.RotaComoTexto(reserva));
+        }
+
+        [Fact(DisplayName = "RN13 · Falha num cruzamento depois do que a viatura está entrando: a rota de volta é refeita, começando na rua em que ela já está")]
+        [Trait("Requisito", "RN13")]
+        [Trait("Requisito", "RN15")]
+        public void Definir_DeveRefazerOCaminhoDeVolta_QuandoAFalhaEDepoisDoCruzamentoEmQueAViaturaEntra()
+        {
+            // Arrange: BOM-02 voltando, já na rua que entra em C2
+            var f = CidadeFactory.Criar();
+            var reserva = ReservaVoltandoDe(f, "C1");
+            f.Frota.Saida("BOM-02", de: "C1", para: "C2");
+
+            // Act: C3, que vem depois de C2, entra em falha
+            f.Falhas.Definir("C3", ativa: true);
+
+            // Assert: a rota continua começando em C2 (a rua em que ela está) e não passa por C3
+            Assert.Equal("C2 → C7 → C8 → C9 → C10 → C15 → C20", f.RotaComoTexto(reserva));
         }
 
         [Fact(DisplayName = "RN13 · Falha na própria base não muda a rota de volta (a base é o destino)")]
