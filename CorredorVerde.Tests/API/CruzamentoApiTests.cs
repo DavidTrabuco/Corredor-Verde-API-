@@ -16,18 +16,18 @@ namespace CorredorVerde.Tests.API
         {
             // Arrange
             using var api = new ApiFactory();
-            var cliente = api.CreateClient();
+            var clienteHttp = api.CreateClient();
 
             // Act
-            var resposta = await cliente.GetAsync("/api/v1/cruzamentos/C1/pode-atravessar?eixo=NS");
+            var respostaHttp = await clienteHttp.GetAsync("/api/v1/cruzamentos/C1/pode-atravessar?eixo=NS");
 
             // Assert
-            Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
-            var resultado = await ApiFactory.Ler<PodeAtravessarResponse>(resposta);
-            Assert.NotNull(resultado);
-            Assert.True(resultado.Pode);
-            Assert.False(resultado.Cautela);
-            Assert.Equal(Luz.Verde, resultado.Luz);
+            Assert.Equal(HttpStatusCode.OK, respostaHttp.StatusCode);
+            var travessia = await ApiFactory.Ler<PodeAtravessarResponse>(respostaHttp);
+            Assert.NotNull(travessia);
+            Assert.True(travessia.Pode);
+            Assert.False(travessia.Cautela);
+            Assert.Equal(Luz.Verde, travessia.Luz);
         }
 
         [Fact(DisplayName = "RN07 · Com o vermelho no eixo, a viatura comum espera")]
@@ -36,16 +36,16 @@ namespace CorredorVerde.Tests.API
         {
             // Arrange
             using var api = new ApiFactory();
-            var cliente = api.CreateClient();
+            var clienteHttp = api.CreateClient();
 
             // Act
-            var resposta = await cliente.GetAsync("/api/v1/cruzamentos/C1/pode-atravessar?eixo=LO&viaturaId=AMB-01");
+            var respostaHttp = await clienteHttp.GetAsync("/api/v1/cruzamentos/C1/pode-atravessar?eixo=LO&viaturaId=AMB-01");
 
             // Assert
-            var resultado = await ApiFactory.Ler<PodeAtravessarResponse>(resposta);
-            Assert.NotNull(resultado);
-            Assert.False(resultado.Pode);
-            Assert.Equal(Luz.Vermelho, resultado.Luz);
+            var travessia = await ApiFactory.Ler<PodeAtravessarResponse>(respostaHttp);
+            Assert.NotNull(travessia);
+            Assert.False(travessia.Pode);
+            Assert.Equal(Luz.Vermelho, travessia.Luz);
         }
 
         [Fact(DisplayName = "RN13 · Com o semáforo em falha, a viatura passa, mas com cautela")]
@@ -53,44 +53,77 @@ namespace CorredorVerde.Tests.API
         [Trait("Requisito", "UC09")]
         public async Task PodeAtravessar_DeveExigirCautela_QuandoOSemaforoEstaEmFalha()
         {
-            // Arrange: a falha de C1 é ligada pela própria API
+            // Arrange: a falha de C1 é ligada pela própria API (a preparação é conferida: precisa dar 204)
             using var api = new ApiFactory();
-            var cliente = api.CreateClient();
-            var ligada = await cliente.PostAsJsonAsync("/api/v1/cruzamentos/C1/falha", new { ativa = true });
-            Assert.Equal(HttpStatusCode.NoContent, ligada.StatusCode);
+            var clienteHttp = api.CreateClient();
+            var respostaLigarFalha = await clienteHttp.PostAsJsonAsync("/api/v1/cruzamentos/C1/falha", new { ativa = true });
+            Assert.Equal(HttpStatusCode.NoContent, respostaLigarFalha.StatusCode);
 
             // Act
-            var resposta = await cliente.GetAsync("/api/v1/cruzamentos/C1/pode-atravessar?eixo=LO");
+            var respostaHttp = await clienteHttp.GetAsync("/api/v1/cruzamentos/C1/pode-atravessar?eixo=LO");
 
             // Assert
-            var resultado = await ApiFactory.Ler<PodeAtravessarResponse>(resposta);
-            Assert.NotNull(resultado);
-            Assert.True(resultado.Pode);
-            Assert.True(resultado.Cautela);
-            Assert.Equal(Luz.Piscante, resultado.Luz);
+            var travessia = await ApiFactory.Ler<PodeAtravessarResponse>(respostaHttp);
+            Assert.NotNull(travessia);
+            Assert.True(travessia.Pode);
+            Assert.True(travessia.Cautela);
+            Assert.Equal(Luz.Piscante, travessia.Luz);
         }
 
-        [Fact(DisplayName = "UC09 · Ligar e desligar a falha pela API devolve 204 e entra no log")]
+        [Fact(DisplayName = "UC09 · Ligar a falha pela API devolve 204, deixa o semáforo piscando e entra no log")]
         [Trait("Requisito", "UC09")]
         [Trait("Requisito", "RN13")]
-        public async Task Falha_DeveDevolver204_QuandoLigaEDesliga()
+        public async Task Falha_DeveLigar_QuandoAtivaEVerdadeira()
         {
             // Arrange
             using var api = new ApiFactory();
-            var cliente = api.CreateClient();
+            var clienteHttp = api.CreateClient();
 
             // Act
-            var ligar = await cliente.PostAsJsonAsync("/api/v1/cruzamentos/C13/falha", new { ativa = true });
-            Assert.True(api.Cidade.Cruzamentos["C13"].Semaforo.EmFalha);
-            var desligar = await cliente.PostAsJsonAsync("/api/v1/cruzamentos/C13/falha", new { ativa = false });
+            var respostaHttp = await clienteHttp.PostAsJsonAsync("/api/v1/cruzamentos/C13/falha", new { ativa = true });
 
-            // Assert
-            Assert.Equal(HttpStatusCode.NoContent, ligar.StatusCode);
-            Assert.Equal(HttpStatusCode.NoContent, desligar.StatusCode);
-            Assert.False(api.Cidade.Cruzamentos["C13"].Semaforo.EmFalha);
-            var evento = api.Cidade.Log[api.Cidade.Log.Count - 1];
-            Assert.Contains("UC09", evento.Tags);
-            Assert.Equal("POST /api/v1/cruzamentos/C13/falha {\"ativa\":false} → 204", evento.Mensagem);
+            // Assert: 204, e o estado (como a maquete lê) mostra a falha com as duas luzes piscando
+            Assert.Equal(HttpStatusCode.NoContent, respostaHttp.StatusCode);
+            var estado = await ApiFactory.LerEstado(clienteHttp);
+            var semaforoDeC13 = ApiFactory.SemaforoDe(estado, "C13");
+            Assert.True(semaforoDeC13.Falha);
+            Assert.Equal(Luz.Piscante, semaforoDeC13.Ns);
+            Assert.Equal(Luz.Piscante, semaforoDeC13.Lo);
+
+            // Assert: a chamada de ligar aparece no log
+            var eventosDoLog = await ApiFactory.LerLog(clienteHttp);
+            var eventoDeLigar = eventosDoLog.Find(e => e.Mensagem == "POST /api/v1/cruzamentos/C13/falha {\"ativa\":true} → 204");
+            Assert.NotNull(eventoDeLigar);
+            Assert.Contains("UC09", eventoDeLigar.Tags);
+        }
+
+        [Fact(DisplayName = "UC09 · Desligar a falha pela API devolve 204, o ciclo normal recomeça e entra no log")]
+        [Trait("Requisito", "UC09")]
+        [Trait("Requisito", "RN13")]
+        public async Task Falha_DeveDesligar_QuandoAtivaEFalsa()
+        {
+            // Arrange: C13 está em falha (a preparação é conferida: precisa dar 204)
+            using var api = new ApiFactory();
+            var clienteHttp = api.CreateClient();
+            var respostaLigarFalha = await clienteHttp.PostAsJsonAsync("/api/v1/cruzamentos/C13/falha", new { ativa = true });
+            Assert.Equal(HttpStatusCode.NoContent, respostaLigarFalha.StatusCode);
+
+            // Act
+            var respostaHttp = await clienteHttp.PostAsJsonAsync("/api/v1/cruzamentos/C13/falha", new { ativa = false });
+
+            // Assert: 204, e o ciclo recomeça com verde para Norte-Sul
+            Assert.Equal(HttpStatusCode.NoContent, respostaHttp.StatusCode);
+            var estado = await ApiFactory.LerEstado(clienteHttp);
+            var semaforoDeC13 = ApiFactory.SemaforoDe(estado, "C13");
+            Assert.False(semaforoDeC13.Falha);
+            Assert.Equal(Luz.Verde, semaforoDeC13.Ns);
+            Assert.Equal(Luz.Vermelho, semaforoDeC13.Lo);
+
+            // Assert: a chamada de desligar aparece no log
+            var eventosDoLog = await ApiFactory.LerLog(clienteHttp);
+            var eventoDeDesligar = eventosDoLog.Find(e => e.Mensagem == "POST /api/v1/cruzamentos/C13/falha {\"ativa\":false} → 204");
+            Assert.NotNull(eventoDeDesligar);
+            Assert.Contains("UC09", eventoDeDesligar.Tags);
         }
 
         [Fact(DisplayName = "RNF04 · Perguntar sem informar o eixo vira 400")]
@@ -99,17 +132,17 @@ namespace CorredorVerde.Tests.API
         {
             // Arrange
             using var api = new ApiFactory();
-            var cliente = api.CreateClient();
+            var clienteHttp = api.CreateClient();
 
             // Act
-            var resposta = await cliente.GetAsync("/api/v1/cruzamentos/C1/pode-atravessar");
+            var respostaHttp = await clienteHttp.GetAsync("/api/v1/cruzamentos/C1/pode-atravessar");
 
             // Assert: 400 em ProblemDetails, com o título em português.
             // O texto de "detail" não é conferido aqui porque hoje sai em inglês (achado do code review).
-            Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
-            var problema = await ApiFactory.Ler<ProblemDetails>(resposta);
-            Assert.NotNull(problema);
-            Assert.Equal("Requisição inválida", problema.Title);
+            Assert.Equal(HttpStatusCode.BadRequest, respostaHttp.StatusCode);
+            var detalhesDoErro = await ApiFactory.Ler<ProblemDetails>(respostaHttp);
+            Assert.NotNull(detalhesDoErro);
+            Assert.Equal("Requisição inválida", detalhesDoErro.Title);
         }
 
         [Fact(DisplayName = "RNF04 · Eixo que não existe vira 400")]
@@ -118,13 +151,13 @@ namespace CorredorVerde.Tests.API
         {
             // Arrange
             using var api = new ApiFactory();
-            var cliente = api.CreateClient();
+            var clienteHttp = api.CreateClient();
 
             // Act
-            var resposta = await cliente.GetAsync("/api/v1/cruzamentos/C1/pode-atravessar?eixo=XX");
+            var respostaHttp = await clienteHttp.GetAsync("/api/v1/cruzamentos/C1/pode-atravessar?eixo=XX");
 
             // Assert
-            Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+            Assert.Equal(HttpStatusCode.BadRequest, respostaHttp.StatusCode);
         }
 
         [Fact(DisplayName = "RNF04 · Cruzamento que não existe na pergunta vira erro do cliente, não 500")]
@@ -133,13 +166,13 @@ namespace CorredorVerde.Tests.API
         {
             // Arrange
             using var api = new ApiFactory();
-            var cliente = api.CreateClient();
+            var clienteHttp = api.CreateClient();
 
             // Act
-            var resposta = await cliente.GetAsync("/api/v1/cruzamentos/C99/pode-atravessar?eixo=NS");
+            var respostaHttp = await clienteHttp.GetAsync("/api/v1/cruzamentos/C99/pode-atravessar?eixo=NS");
 
             // Assert: um id errado é erro de quem chamou (4xx), nunca falha do servidor
-            Assert.True((int)resposta.StatusCode >= 400 && (int)resposta.StatusCode < 500);
+            Assert.True((int)respostaHttp.StatusCode >= 400 && (int)respostaHttp.StatusCode < 500);
         }
     }
 }
