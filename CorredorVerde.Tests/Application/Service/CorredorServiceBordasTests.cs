@@ -36,8 +36,12 @@ namespace CorredorVerde.Tests.Application.Service
             // Act
             var erro = Assert.Throws<InvalidOperationException>(() => f.Corredor.IniciarTrecho(ambulancia));
 
-            // Assert
+            // Assert: a recusa vem antes de qualquer mudança, então a cidade e a viatura ficam como estavam
             Assert.Equal("AMB-01 não tem destino para abrir corredor.", erro.Message);
+            Assert.True(f.NenhumCruzamentoReservado());
+            Assert.Empty(ambulancia.Rota);
+            Assert.False(ambulancia.SemRota);
+            Assert.Empty(f.Cidade.Log);
         }
 
         [Fact(DisplayName = "RN06 · Abrir o corredor de uma viatura sem ocorrência é erro de programa")]
@@ -52,8 +56,12 @@ namespace CorredorVerde.Tests.Application.Service
             // Act
             var erro = Assert.Throws<InvalidOperationException>(() => f.Corredor.IniciarTrecho(ambulancia));
 
-            // Assert
+            // Assert: nenhum cruzamento ficou reservado pela metade e nada foi para o log.
+            // A rota da viatura não é conferida aqui: hoje o service a preenche antes de validar a ocorrência,
+            // e ela sobra preenchida depois do erro (achado do code review).
             Assert.Equal("AMB-01 não tem ocorrência para abrir corredor.", erro.Message);
+            Assert.True(f.NenhumCruzamentoReservado());
+            Assert.Empty(f.Cidade.Log);
         }
     }
 }
