@@ -12,10 +12,12 @@ namespace CorredorVerde.Tests.Application.Service
             // Arrange
             var f = CidadeFactory.Criar();
 
-            // Act: de C15 o Hospital Sul (C18) está a 3 quarteirões e o Norte (C3), a 5
+            // Act
             var hospital = f.Malha.HospitalMaisProximo("C15");
 
-            // Assert
+            // Assert: de C15 o Hospital Sul (C18) está a 3 quarteirões e o Norte (C3), a 4 (conferido na própria malha)
+            Assert.Equal(3, f.QuarteiroesEntre("C15", "C18"));
+            Assert.Equal(4, f.QuarteiroesEntre("C15", "C3"));
             Assert.NotNull(hospital);
             Assert.Equal("Hospital Sul", hospital.Nome);
         }
