@@ -16,21 +16,21 @@ namespace CorredorVerde.Tests.API
         {
             // Arrange
             using var api = new ApiFactory();
-            var cliente = api.CreateClient();
+            var clienteHttp = api.CreateClient();
 
             // Act
-            var resposta = await cliente.PostAsJsonAsync("/api/v1/ocorrencias",
+            var respostaHttp = await clienteHttp.PostAsJsonAsync("/api/v1/ocorrencias",
                 new { tipo = "Ambulancia", cruzamento = "C15", criticidade = 1 });
 
             // Assert
-            Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
-            var ocorrencia = await ApiFactory.Ler<OcorrenciaResponse>(resposta);
-            Assert.NotNull(ocorrencia);
-            Assert.Equal("OC-001", ocorrencia.Id);
-            Assert.Equal("AMB-01", ocorrencia.ViaturaId);
-            Assert.Equal("C15", ocorrencia.Cruzamento);
-            Assert.Equal(StatusOcorrencia.ACaminho, ocorrencia.Status);
-            Assert.Equal("Hospital Sul", ocorrencia.Hospital);
+            Assert.Equal(HttpStatusCode.Created, respostaHttp.StatusCode);
+            var ocorrenciaRegistrada = await ApiFactory.Ler<OcorrenciaResponse>(respostaHttp);
+            Assert.NotNull(ocorrenciaRegistrada);
+            Assert.Equal("OC-001", ocorrenciaRegistrada.Id);
+            Assert.Equal("AMB-01", ocorrenciaRegistrada.ViaturaId);
+            Assert.Equal("C15", ocorrenciaRegistrada.Cruzamento);
+            Assert.Equal(StatusOcorrencia.ACaminho, ocorrenciaRegistrada.Status);
+            Assert.Equal("Hospital Sul", ocorrenciaRegistrada.Hospital);
         }
 
         [Fact(DisplayName = "UC03 · A chamada que deu certo vai para o log de eventos como tipo Api")]
@@ -40,16 +40,16 @@ namespace CorredorVerde.Tests.API
         {
             // Arrange
             using var api = new ApiFactory();
-            var cliente = api.CreateClient();
+            var clienteHttp = api.CreateClient();
 
             // Act
-            await cliente.PostAsJsonAsync("/api/v1/ocorrencias", new { tipo = "Bombeiros", cruzamento = "C15", criticidade = 2 });
+            await ApiFactory.RegistrarEmergencia(clienteHttp, "Bombeiros", "C15", 2);
 
             // Assert: o último evento é a chamada, com as tags da API e do UC03
-            var evento = api.Cidade.Log[api.Cidade.Log.Count - 1];
-            Assert.Equal(TipoEvento.Api, evento.Tipo);
-            Assert.Contains("UC03", evento.Tags);
-            Assert.Equal("POST /api/v1/ocorrencias {\"tipo\":\"Bombeiros\",\"cruzamento\":\"C15\",\"criticidade\":2} → 201", evento.Mensagem);
+            var eventoDaChamada = api.Cidade.Log[api.Cidade.Log.Count - 1];
+            Assert.Equal(TipoEvento.Api, eventoDaChamada.Tipo);
+            Assert.Contains("UC03", eventoDaChamada.Tags);
+            Assert.Equal("POST /api/v1/ocorrencias {\"tipo\":\"Bombeiros\",\"cruzamento\":\"C15\",\"criticidade\":2} → 201", eventoDaChamada.Mensagem);
         }
 
         [Fact(DisplayName = "UC03 · A lista de ocorrências mostra o que foi registrado")]
@@ -58,18 +58,18 @@ namespace CorredorVerde.Tests.API
         {
             // Arrange
             using var api = new ApiFactory();
-            var cliente = api.CreateClient();
-            await cliente.PostAsJsonAsync("/api/v1/ocorrencias", new { tipo = "Ambulancia", cruzamento = "C15", criticidade = 1 });
+            var clienteHttp = api.CreateClient();
+            await ApiFactory.RegistrarEmergencia(clienteHttp, "Ambulancia", "C15", 1);
 
             // Act
-            var resposta = await cliente.GetAsync("/api/v1/ocorrencias");
+            var respostaHttp = await clienteHttp.GetAsync("/api/v1/ocorrencias");
 
             // Assert
-            Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
-            var lista = await ApiFactory.Ler<List<OcorrenciaResponse>>(resposta);
-            Assert.NotNull(lista);
-            Assert.Single(lista);
-            Assert.Equal("OC-001", lista[0].Id);
+            Assert.Equal(HttpStatusCode.OK, respostaHttp.StatusCode);
+            var ocorrenciasListadas = await ApiFactory.Ler<List<OcorrenciaResponse>>(respostaHttp);
+            Assert.NotNull(ocorrenciasListadas);
+            Assert.Single(ocorrenciasListadas);
+            Assert.Equal("OC-001", ocorrenciasListadas[0].Id);
         }
 
         [Fact(DisplayName = "RNF04 · Cruzamento que não existe vira 400 e nenhuma ocorrência é criada")]
@@ -78,17 +78,17 @@ namespace CorredorVerde.Tests.API
         {
             // Arrange
             using var api = new ApiFactory();
-            var cliente = api.CreateClient();
+            var clienteHttp = api.CreateClient();
 
             // Act
-            var resposta = await cliente.PostAsJsonAsync("/api/v1/ocorrencias",
+            var respostaHttp = await clienteHttp.PostAsJsonAsync("/api/v1/ocorrencias",
                 new { tipo = "Ambulancia", cruzamento = "C99", criticidade = 1 });
 
             // Assert
-            Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
-            var problema = await ApiFactory.Ler<ProblemDetails>(resposta);
-            Assert.NotNull(problema);
-            Assert.Equal("Cruzamento C99 não existe na malha.", problema.Detail);
+            Assert.Equal(HttpStatusCode.BadRequest, respostaHttp.StatusCode);
+            var detalhesDoErro = await ApiFactory.Ler<ProblemDetails>(respostaHttp);
+            Assert.NotNull(detalhesDoErro);
+            Assert.Equal("Cruzamento C99 não existe na malha.", detalhesDoErro.Detail);
             Assert.Empty(api.Cidade.Ocorrencias);
         }
 
@@ -98,21 +98,21 @@ namespace CorredorVerde.Tests.API
         {
             // Arrange
             using var api = new ApiFactory();
-            var cliente = api.CreateClient();
-            var corpo = new StringContent("{ isto não é json", System.Text.Encoding.UTF8, "application/json");
+            var clienteHttp = api.CreateClient();
+            var corpoComJsonQuebrado = new StringContent("{ isto não é json", System.Text.Encoding.UTF8, "application/json");
 
             // Act
-            var resposta = await cliente.PostAsync("/api/v1/ocorrencias", corpo);
+            var respostaHttp = await clienteHttp.PostAsync("/api/v1/ocorrencias", corpoComJsonQuebrado);
 
             // Assert: 400 em ProblemDetails, com o título em português e o aviso no log de eventos.
             // O texto de "detail" não é conferido aqui porque hoje sai em inglês (achado do code review).
-            Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
-            Assert.Equal("application/problem+json", resposta.Content.Headers.ContentType?.MediaType);
-            var problema = await ApiFactory.Ler<ProblemDetails>(resposta);
-            Assert.NotNull(problema);
-            Assert.Equal("Requisição inválida", problema.Title);
-            var evento = api.Cidade.Log[api.Cidade.Log.Count - 1];
-            Assert.Contains("RNF04", evento.Tags);
+            Assert.Equal(HttpStatusCode.BadRequest, respostaHttp.StatusCode);
+            Assert.Equal("application/problem+json", respostaHttp.Content.Headers.ContentType?.MediaType);
+            var detalhesDoErro = await ApiFactory.Ler<ProblemDetails>(respostaHttp);
+            Assert.NotNull(detalhesDoErro);
+            Assert.Equal("Requisição inválida", detalhesDoErro.Title);
+            var eventoDaRecusa = api.Cidade.Log[api.Cidade.Log.Count - 1];
+            Assert.Contains("RNF04", eventoDaRecusa.Tags);
         }
     }
 }
