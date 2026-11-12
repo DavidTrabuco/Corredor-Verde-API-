@@ -16,15 +16,15 @@ namespace CorredorVerde.Tests.Infrastructure
         public async Task ExecuteAsync_DeveAvancarOTempo_QuandoPassaUmTick()
         {
             // Arrange
-            using var relogio = new RelogioDeTeste();
-            await relogio.Ligar();
+            using var cenario = new CenarioDoRelogio();
+            await cenario.LigarORelogio();
 
             // Act
-            await relogio.PassarUmTick();
+            await cenario.PassarUmTick();
 
             // Assert
-            Assert.Single(relogio.Temporizador.Chamadas);
-            Assert.Equal(0.1, relogio.Temporizador.Chamadas[0], precision: 6);
+            Assert.Single(cenario.TemporizadorFalso.SegundosRecebidos);
+            Assert.Equal(0.1, cenario.TemporizadorFalso.SegundosRecebidos[0], precision: 6);
         }
 
         [Fact(DisplayName = "UC10 · Na velocidade 4×, cada tick avança 4 vezes mais")]
@@ -33,15 +33,15 @@ namespace CorredorVerde.Tests.Infrastructure
         public async Task ExecuteAsync_DeveMultiplicarPelaVelocidade_QuandoAVelocidadeEMaior()
         {
             // Arrange
-            using var relogio = new RelogioDeTeste();
-            relogio.Fabrica.Cidade.Velocidade = 4;
-            await relogio.Ligar();
+            using var cenario = new CenarioDoRelogio();
+            cenario.FabricaDaCidade.Cidade.Velocidade = 4;
+            await cenario.LigarORelogio();
 
             // Act
-            await relogio.PassarUmTick();
+            await cenario.PassarUmTick();
 
             // Assert: 0,1 s × 4 = 0,4 s
-            Assert.Equal(0.4, relogio.Temporizador.Chamadas[0], precision: 6);
+            Assert.Equal(0.4, cenario.TemporizadorFalso.SegundosRecebidos[0], precision: 6);
         }
 
         [Fact(DisplayName = "UC10 · Com a simulação pausada, o tempo não anda")]
@@ -49,17 +49,17 @@ namespace CorredorVerde.Tests.Infrastructure
         public async Task ExecuteAsync_NaoDeveAvancarOTempo_QuandoEstaPausado()
         {
             // Arrange
-            using var relogio = new RelogioDeTeste();
-            relogio.Fabrica.Cidade.Pausado = true;
-            await relogio.Ligar();
+            using var cenario = new CenarioDoRelogio();
+            cenario.FabricaDaCidade.Cidade.Pausado = true;
+            await cenario.LigarORelogio();
 
             // Act: passam 3 ticks
-            await relogio.PassarUmTick();
-            await relogio.PassarUmTick();
-            await relogio.PassarUmTick();
+            await cenario.PassarUmTick();
+            await cenario.PassarUmTick();
+            await cenario.PassarUmTick();
 
             // Assert: o relógio nem chamou o temporizador
-            Assert.Empty(relogio.Temporizador.Chamadas);
+            Assert.Empty(cenario.TemporizadorFalso.SegundosRecebidos);
         }
 
         [Fact(DisplayName = "UC10 · Ao tirar a pausa, o tempo volta a andar")]
@@ -67,18 +67,18 @@ namespace CorredorVerde.Tests.Infrastructure
         public async Task ExecuteAsync_DeveVoltarAAvancar_QuandoAPausaTermina()
         {
             // Arrange: começa pausado e deixa um tick passar parado
-            using var relogio = new RelogioDeTeste();
-            relogio.Fabrica.Cidade.Pausado = true;
-            await relogio.Ligar();
-            await relogio.PassarUmTick();
-            Assert.Empty(relogio.Temporizador.Chamadas);
+            using var cenario = new CenarioDoRelogio();
+            cenario.FabricaDaCidade.Cidade.Pausado = true;
+            await cenario.LigarORelogio();
+            await cenario.PassarUmTick();
+            Assert.Empty(cenario.TemporizadorFalso.SegundosRecebidos);
 
             // Act: a pausa é tirada e passa mais um tick
-            relogio.Fabrica.Cidade.Pausado = false;
-            await relogio.PassarUmTick();
+            cenario.FabricaDaCidade.Cidade.Pausado = false;
+            await cenario.PassarUmTick();
 
             // Assert
-            Assert.Single(relogio.Temporizador.Chamadas);
+            Assert.Single(cenario.TemporizadorFalso.SegundosRecebidos);
         }
 
         [Fact(DisplayName = "RNF12 · O tamanho do tick vem da configuração (TickMs)")]
@@ -87,14 +87,14 @@ namespace CorredorVerde.Tests.Infrastructure
         public async Task ExecuteAsync_DeveUsarOTickDaConfiguracao_QuandoTickMsMuda()
         {
             // Arrange: tick de 50 ms em vez de 100 ms
-            using var relogio = new RelogioDeTeste(tickMs: 50);
-            await relogio.Ligar();
+            using var cenario = new CenarioDoRelogio(tickMs: 50);
+            await cenario.LigarORelogio();
 
             // Act
-            await relogio.PassarUmTick();
+            await cenario.PassarUmTick();
 
             // Assert
-            Assert.Equal(0.05, relogio.Temporizador.Chamadas[0], precision: 6);
+            Assert.Equal(0.05, cenario.TemporizadorFalso.SegundosRecebidos[0], precision: 6);
         }
 
         [Fact(DisplayName = "RNF02 · Um erro num tick não para o relógio: o tick seguinte acontece normalmente")]
@@ -102,16 +102,16 @@ namespace CorredorVerde.Tests.Infrastructure
         public async Task ExecuteAsync_NaoDevePararORelogio_QuandoUmTickDaErro()
         {
             // Arrange: o primeiro tick quebra
-            using var relogio = new RelogioDeTeste();
-            relogio.Temporizador.QuebrarNaPrimeiraChamada = true;
-            await relogio.Ligar();
+            using var cenario = new CenarioDoRelogio();
+            cenario.TemporizadorFalso.QuebrarNaPrimeiraChamada = true;
+            await cenario.LigarORelogio();
 
             // Act: o tick que quebra e mais um
-            await relogio.PassarUmTick();
-            await relogio.PassarUmTick();
+            await cenario.PassarUmTick();
+            await cenario.PassarUmTick();
 
             // Assert: houve duas chamadas, então o relógio continuou depois do erro
-            Assert.Equal(2, relogio.Temporizador.Chamadas.Count);
+            Assert.Equal(2, cenario.TemporizadorFalso.SegundosRecebidos.Count);
         }
 
         [Fact(DisplayName = "UC02 · Com o temporizador de verdade, dez ticks fazem a simulação andar 1 s")]
@@ -119,15 +119,15 @@ namespace CorredorVerde.Tests.Infrastructure
         public async Task ExecuteAsync_DeveFazerOTempoAndar_QuandoUsaOTemporizadorReal()
         {
             // Arrange: sem o falso, o relógio chama o TemporizadorService de verdade
-            using var relogio = new RelogioDeTeste(usarTemporizadorReal: true);
-            await relogio.Ligar();
+            using var cenario = new CenarioDoRelogio(usarTemporizadorReal: true);
+            await cenario.LigarORelogio();
 
             // Act: 10 ticks de 100 ms
             for (var i = 0; i < 10; i++)
-                await relogio.PassarUmTick();
+                await cenario.PassarUmTick();
 
             // Assert
-            Assert.Equal(1.0, relogio.Fabrica.Cidade.TempoSeg, precision: 6);
+            Assert.Equal(1.0, cenario.FabricaDaCidade.Cidade.TempoSeg, precision: 6);
         }
 
         [Fact(DisplayName = "RNF02 · Ao desligar a API, o relógio para sem erro e não anda mais")]
@@ -135,35 +135,37 @@ namespace CorredorVerde.Tests.Infrastructure
         public async Task StopAsync_DevePararORelogio_QuandoAApiDesliga()
         {
             // Arrange
-            using var relogio = new RelogioDeTeste();
-            await relogio.Ligar();
-            await relogio.PassarUmTick();
+            using var cenario = new CenarioDoRelogio();
+            await cenario.LigarORelogio();
+            await cenario.PassarUmTick();
 
             // Act
-            await relogio.Desligar();
-            relogio.Tempo.Advance(TimeSpan.FromMilliseconds(500));
+            await cenario.DesligarORelogio();
+            cenario.TempoFalso.Advance(TimeSpan.FromMilliseconds(500));
             await Task.Delay(50);
 
             // Assert: continua só com o tick de antes
-            Assert.Single(relogio.Temporizador.Chamadas);
+            Assert.Single(cenario.TemporizadorFalso.SegundosRecebidos);
         }
+
 
         // Temporizador falso: só anota com quantos segundos foi chamado (e pode quebrar na primeira vez)
         private class TemporizadorGravador : ITemporizadorService
         {
             private readonly object _trava = new();
-            private readonly List<double> _chamadas = new();
+            private readonly List<double> _segundosRecebidos = new();
             private bool _jaQuebrou;
 
             public bool QuebrarNaPrimeiraChamada { get; set; }
 
-            public List<double> Chamadas
+            // Cada item é o valor de "segundos" de uma chamada ao Avancar, na ordem em que aconteceram
+            public List<double> SegundosRecebidos
             {
                 get
                 {
                     lock (_trava)
                     {
-                        return new List<double>(_chamadas);
+                        return new List<double>(_segundosRecebidos);
                     }
                 }
             }
@@ -172,7 +174,7 @@ namespace CorredorVerde.Tests.Infrastructure
             {
                 lock (_trava)
                 {
-                    _chamadas.Add(segundos);
+                    _segundosRecebidos.Add(segundos);
                     if (QuebrarNaPrimeiraChamada && !_jaQuebrou)
                     {
                         _jaQuebrou = true;
@@ -182,99 +184,107 @@ namespace CorredorVerde.Tests.Infrastructure
             }
         }
 
-        // Monta o relógio com tempo falso e deixa cada tick passar de forma previsível
-        private class RelogioDeTeste : IDisposable
+        // Tudo o que um teste do relógio precisa: a cidade, o tempo falso, o temporizador que anota e o relógio da API.
+        // Cada tick passa de forma previsível (o teste manda o tempo andar e espera o relógio tratar).
+        private class CenarioDoRelogio : IDisposable
         {
-            private readonly TimeSpan _tick;
-            private readonly bool _usarTemporizadorReal;
-            private int _ticksJaVistos;
+            private readonly TimeSpan _duracaoDoTick;
+            private readonly bool _usaTemporizadorReal;
+            private readonly CancellationTokenSource _pedidoDeParada = new();
+            private Task _tarefaDoRelogio = Task.CompletedTask;
+            private int _ticksPassados;
 
-            public CidadeFactory Fabrica { get; }
-            public FakeTimeProvider Tempo { get; } = new();
-            public TemporizadorGravador Temporizador { get; } = new();
-            public RelogioExposto Worker { get; }
-            private readonly CancellationTokenSource _parada = new();
-            private Task _execucao = Task.CompletedTask;
+            // A cidade de teste (com as bases, viaturas e semáforos) e o service real que ela traz
+            public CidadeFactory FabricaDaCidade { get; }
 
-            public RelogioDeTeste(int tickMs = 100, bool usarTemporizadorReal = false)
+            // O tempo que o teste controla: só anda quando o teste manda (Advance)
+            public FakeTimeProvider TempoFalso { get; } = new();
+
+            // O temporizador falso, que anota quantos segundos o relógio mandou avançar
+            public TemporizadorGravador TemporizadorFalso { get; } = new();
+
+            // O mesmo relógio que a API usa
+            public RelogioDaApiParaTeste RelogioDaApi { get; }
+
+            public CenarioDoRelogio(int tickMs = 100, bool usarTemporizadorReal = false)
             {
-                _tick = TimeSpan.FromMilliseconds(tickMs);
-                _usarTemporizadorReal = usarTemporizadorReal;
-                Fabrica = CidadeFactory.Criar(opcoes => opcoes.TickMs = tickMs);
+                _duracaoDoTick = TimeSpan.FromMilliseconds(tickMs);
+                _usaTemporizadorReal = usarTemporizadorReal;
+                FabricaDaCidade = CidadeFactory.Criar(opcoes => opcoes.TickMs = tickMs);
 
-                ITemporizadorService temporizador = usarTemporizadorReal ? Fabrica.Temporizador : Temporizador;
-                Worker = new RelogioExposto(
-                    Fabrica.Cidade,
-                    temporizador,
-                    Tempo,
-                    Options.Create(Fabrica.Cidade.Config),
+                ITemporizadorService temporizadorUsado = usarTemporizadorReal ? FabricaDaCidade.Temporizador : TemporizadorFalso;
+                RelogioDaApi = new RelogioDaApiParaTeste(
+                    FabricaDaCidade.Cidade,
+                    temporizadorUsado,
+                    TempoFalso,
+                    Options.Create(FabricaDaCidade.Cidade.Config),
                     NullLogger<RelogioSimulacaoWorker>.Instance);
             }
 
             // Roda o ExecuteAsync direto: o timer já nasce aqui, antes do primeiro tick (o StartAsync do .NET 10 não garante isso)
-            public Task Ligar()
+            public Task LigarORelogio()
             {
-                _execucao = Worker.Rodar(_parada.Token);
+                _tarefaDoRelogio = RelogioDaApi.Rodar(_pedidoDeParada.Token);
                 return Task.CompletedTask;
             }
 
             // Desliga como a API faz ao parar, e espera o relógio terminar
-            public async Task Desligar()
+            public async Task DesligarORelogio()
             {
-                _parada.Cancel();
-                await _execucao;
+                _pedidoDeParada.Cancel();
+                await _tarefaDoRelogio;
             }
 
             // Faz o tempo falso andar um tick e espera o relógio terminar de tratar esse tick
             public async Task PassarUmTick()
             {
-                Tempo.Advance(_tick);
-                _ticksJaVistos++;
+                TempoFalso.Advance(_duracaoDoTick);
+                _ticksPassados++;
                 await EsperarOTick();
             }
 
             // O relógio roda em outra thread: espera (até 2 s) ele tratar o tick, ou dá um tempo curto quando nada deve acontecer
             private async Task EsperarOTick()
             {
-                var limite = DateTime.UtcNow.AddSeconds(2);
-                if (!_usarTemporizadorReal && !Fabrica.Cidade.Pausado)
+                var prazoMaximo = DateTime.UtcNow.AddSeconds(2);
+                if (!_usaTemporizadorReal && !FabricaDaCidade.Cidade.Pausado)
                 {
-                    while (Temporizador.Chamadas.Count < _ticksJaVistos && DateTime.UtcNow < limite)
+                    while (TemporizadorFalso.SegundosRecebidos.Count < _ticksPassados && DateTime.UtcNow < prazoMaximo)
                         await Task.Delay(5);
                     return;
                 }
 
-                if (_usarTemporizadorReal)
+                if (_usaTemporizadorReal)
                 {
-                    var esperado = _ticksJaVistos * _tick.TotalSeconds;
-                    while (Fabrica.Cidade.TempoSeg < esperado - 1e-9 && DateTime.UtcNow < limite)
+                    var tempoEsperadoSeg = _ticksPassados * _duracaoDoTick.TotalSeconds;
+                    while (FabricaDaCidade.Cidade.TempoSeg < tempoEsperadoSeg - 1e-9 && DateTime.UtcNow < prazoMaximo)
                         await Task.Delay(5);
                     return;
                 }
 
                 // Pausado: nada vai acontecer, então só dá tempo de o relógio olhar o tick
                 await Task.Delay(30);
-                _ticksJaVistos--;
+                _ticksPassados--;
             }
 
             public void Dispose()
             {
-                Desligar().GetAwaiter().GetResult();
-                _parada.Dispose();
-                Worker.Dispose();
+                DesligarORelogio().GetAwaiter().GetResult();
+                _pedidoDeParada.Dispose();
+                RelogioDaApi.Dispose();
             }
         }
 
         // O mesmo relógio da API, só deixando o teste chamar o ExecuteAsync (que é protected)
-        private class RelogioExposto : RelogioSimulacaoWorker
+        private class RelogioDaApiParaTeste : RelogioSimulacaoWorker
         {
-            public RelogioExposto(Domain.Entidades.Cidade cidade, ITemporizadorService temporizador, TimeProvider tempo,
+            public RelogioDaApiParaTeste(Domain.Entidades.Cidade cidade, ITemporizadorService temporizador, TimeProvider tempo,
                 IOptions<Domain.Options.SimulacaoOptions> opcoes, Microsoft.Extensions.Logging.ILogger<RelogioSimulacaoWorker> logger)
                 : base(cidade, temporizador, tempo, opcoes, logger)
             {
             }
 
-            public Task Rodar(CancellationToken parada) => ExecuteAsync(parada);
+            public Task Rodar(CancellationToken pedidoDeParada) => ExecuteAsync(pedidoDeParada);
         }
     }
 }
