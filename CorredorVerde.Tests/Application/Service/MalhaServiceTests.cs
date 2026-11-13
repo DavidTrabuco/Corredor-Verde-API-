@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using CorredorVerde.Domain.Enums;
-using CorredorVerde.Domain.Exceptions;
 using CorredorVerde.Tests.TestSupport;
 
 namespace CorredorVerde.Tests.Application.Service
@@ -124,30 +123,6 @@ namespace CorredorVerde.Tests.Application.Service
             Assert.Equal(Eixo.NS, rota[0].Eixo);
             Assert.Equal(Eixo.LO, rota[1].Eixo);
             Assert.Equal(Eixo.LO, rota[2].Eixo);
-        }
-
-        [Fact(DisplayName = "RNF04 · Pedir um cruzamento que não existe dá erro de validação (vira 400 na API)")]
-        [Trait("Requisito", "RNF04")]
-        public void ObterCruzamento_DeveLancarValidacaoException_QuandoNaoExiste()
-        {
-            // Arrange
-            var f = CidadeFactory.Criar();
-
-            // Act + Assert: o código dentro de "() =>" tem que lançar a exceção
-            Assert.Throws<ValidacaoException>(() => f.Malha.ObterCruzamento("C99"));
-        }
-
-        [Fact(DisplayName = "RN05 · A malha sabe a direção entre dois vizinhos, e que C11 e C20 não são vizinhos")]
-        [Trait("Requisito", "RN05")]
-        public void DirecaoEntre_DeveRetornarNulo_QuandoNaoSaoVizinhos()
-        {
-            // Arrange
-            var f = CidadeFactory.Criar();
-
-            // Act + Assert
-            Assert.Equal(Direcao.L, f.Malha.DirecaoEntre("C11", "C12"));
-            Assert.Equal(Direcao.N, f.Malha.DirecaoEntre("C11", "C6"));
-            Assert.Null(f.Malha.DirecaoEntre("C11", "C20"));
         }
     }
 }

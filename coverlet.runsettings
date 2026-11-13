@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cobertura (RNF11): mede só os services das regras de negócio. -->
+<!-- O SimulacaoService fica de fora porque só monta as respostas para a maquete; não tem regra de negócio. -->
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat code coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <Include>[CorredorVerde]CorredorVerde.Application.Service.*</Include>
+          <Exclude>[CorredorVerde]CorredorVerde.Application.Service.SimulacaoService*</Exclude>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

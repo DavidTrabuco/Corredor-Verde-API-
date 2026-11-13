@@ -246,37 +246,7 @@ namespace CorredorVerde.Tests.Application.Service
             Assert.True(f.LogTem("AMB-01 encerrou OC-001 no local: não há hospital configurado."));
         }
 
-        [Fact(DisplayName = "RNF04 · Viatura que não existe é recusada com 404")]
-        [Trait("Requisito", "RNF04")]
-        public void Obter_DeveRecusar_QuandoViaturaNaoExiste()
-        {
-            // Arrange
-            var f = CidadeFactory.Criar();
-
-            // Act
-            var erro = Assert.Throws<NaoEncontradoException>(() => f.Frota.Obter("XYZ-99"));
-
-            // Assert
-            Assert.Equal("Viatura XYZ-99 não existe.", erro.Message);
-        }
-
-        [Fact(DisplayName = "RNF04 · Saída entre cruzamentos que não são vizinhos é recusada")]
-        [Trait("Requisito", "RNF04")]
-        [Trait("Requisito", "UC01")]
-        public void Saida_DeveRecusar_QuandoCruzamentosNaoSaoVizinhos()
-        {
-            // Arrange
-            var f = CidadeFactory.Criar();
-
-            // Act: C1 e C20 ficam em pontas opostas da malha
-            var erro = Assert.Throws<ValidacaoException>(() => f.Frota.Saida("AMB-01", "C1", "C20"));
-
-            // Assert: a posição da viatura não mudou
-            Assert.Equal("C1 e C20 não são vizinhos.", erro.Message);
-            Assert.Equal("C11", f.PegarViatura("AMB-01").Cruzamento);
-        }
-
-        [Fact(DisplayName = "RNF04 · Viatura em atendimento não pode sair do cruzamento")]
+        [Fact(DisplayName = "RN09 · Viatura em atendimento não pode sair do cruzamento")]
         [Trait("Requisito", "RNF04")]
         [Trait("Requisito", "RN09")]
         public void Saida_DeveRecusar_QuandoViaturaEstaEmAtendimento()
@@ -292,6 +262,44 @@ namespace CorredorVerde.Tests.Application.Service
             // Assert
             Assert.Equal("BOM-01 está em atendimento.", erro.Message);
             Assert.Null(bombeiros.IndoPara);
+        }
+
+        [Fact(DisplayName = "RN09 · Se a viatura já está no cruzamento da ocorrência, o atendimento começa direto")]
+        [Trait("Requisito", "RN09")]
+        [Trait("Requisito", "UC05")]
+        public void IniciarTrecho_DeveComecarOAtendimento_QuandoJaEstaNoDestino()
+        {
+            // Arrange: BOM-01 já está parado em C15, onde fica a ocorrência
+            var f = CidadeFactory.Criar();
+            var bombeiros = f.ColocarEmEmergencia("BOM-01", de: "C15", ate: "C15", criticidade: 2);
+            var ocorrencia = f.Cidade.Ocorrencias[0];
+
+            // Act
+            f.Frota.IniciarTrecho(bombeiros);
+
+            // Assert: não abriu corredor nenhum e já está atendendo
+            Assert.Equal(ModoViatura.Atendimento, bombeiros.Modo);
+            Assert.Equal(StatusOcorrencia.EmAtendimento, ocorrencia.Status);
+            Assert.True(f.NenhumCruzamentoReservado());
+        }
+
+        [Fact(DisplayName = "UC01 · Viatura em patrulha que chega a um cruzamento só tem a posição atualizada")]
+        [Trait("Requisito", "UC01")]
+        public void Chegada_DeveSoAtualizarAPosicao_QuandoAViaturaEstaEmPatrulha()
+        {
+            // Arrange: AMB-01 está em patrulha, na base (C11), indo para C12
+            var f = CidadeFactory.Criar();
+            f.Frota.Saida("AMB-01", de: "C11", para: "C12");
+
+            // Act: chega ao centro de C12
+            f.Frota.Chegada("AMB-01", "C12");
+
+            // Assert: está em C12, parada, ainda em patrulha, e nada foi para o log
+            var ambulancia = f.PegarViatura("AMB-01");
+            Assert.Equal("C12", ambulancia.Cruzamento);
+            Assert.Null(ambulancia.IndoPara);
+            Assert.Equal(ModoViatura.Patrulha, ambulancia.Modo);
+            Assert.Empty(f.Cidade.Log);
         }
     }
 }

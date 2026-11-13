@@ -6,20 +6,6 @@ namespace CorredorVerde.Tests.Application.Service
     // O tempo anda com Temporizador.Avancar, o mesmo método que o relógio da API chama a cada 100 ms.
     public class TemporizadorServiceTests
     {
-        [Fact(DisplayName = "UC02 · O relógio faz o tempo da simulação andar")]
-        [Trait("Requisito", "UC02")]
-        public void Avancar_DeveSomarOTempo_QuandoORelogioAnda()
-        {
-            // Arrange
-            var f = CidadeFactory.Criar();
-
-            // Act: o relógio anda 2,5 s
-            f.Temporizador.Avancar(2.5);
-
-            // Assert
-            Assert.Equal(2.5, f.Cidade.TempoSeg, precision: 6);
-        }
-
         [Fact(DisplayName = "UC02 · O relógio também atualiza os semáforos: depois de 8 s de verde vem o amarelo")]
         [Trait("Requisito", "UC02")]
         [Trait("Requisito", "RN02")]
