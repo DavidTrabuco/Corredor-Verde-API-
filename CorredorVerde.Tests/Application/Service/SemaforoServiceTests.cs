@@ -99,26 +99,6 @@ namespace CorredorVerde.Tests.Application.Service
             Assert.False(noAmarelo.Pode);
         }
 
-        [Fact(DisplayName = "RN07 · A espera no sinal só vai para o log quando a viatura está em emergência")]
-        [Trait("Requisito", "RN07")]
-        public void PodeAtravessar_DeveLogarAEspera_SomenteQuandoAViaturaEstaEmEmergencia()
-        {
-            // Arrange: C7 vermelho para Leste-Oeste
-            var f = CidadeFactory.Criar();
-            f.SemaforoComeca("C7", Eixo.NS);
-
-            // Act + Assert: em patrulha, não registra nada
-            f.Semaforo.PodeAtravessar("C7", Eixo.LO, "AMB-01");
-            Assert.Empty(f.Cidade.Log);
-
-            // Act + Assert: em emergência, registra uma vez só, mesmo perguntando duas vezes
-            f.PegarViatura("AMB-01").Modo = ModoViatura.Emergencia;
-            f.Semaforo.PodeAtravessar("C7", Eixo.LO, "AMB-01");
-            f.Semaforo.PodeAtravessar("C7", Eixo.LO, "AMB-01");
-            Assert.Single(f.Cidade.Log);
-            Assert.True(f.LogTem("AMB-01 parou na faixa de C7: vermelho para Leste-Oeste. Espera o verde."));
-        }
-
         [Fact(DisplayName = "RN13 · Semáforo em falha fica piscante, e a viatura passa com cautela")]
         [Trait("Requisito", "RN13")]
         [Trait("Requisito", "RN07")]

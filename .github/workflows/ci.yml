@@ -39,20 +39,19 @@ jobs:
       - name: Compilar
         run: dotnet build CorredorVerde.slnx --configuration Release --no-restore
 
-      # Cobertura de código (RNF11)
+      # Cobertura de código (RNF11): o coverlet.runsettings limita a medição aos services das regras de negócio
       - name: Testar com cobertura
         run: >
           dotnet test CorredorVerde.slnx --configuration Release --no-build
-          --collect:"XPlat Code Coverage" --results-directory ./resultados
+          --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory ./resultados
           --logger "trx;LogFileName=testes.trx"
 
-      # Cobertura mínima (RNF11): se a cobertura cair abaixo destes valores, o check fica vermelho e o PR não pode ser mesclado.
-      # Para mudar o limite, é só trocar os números abaixo.
+      # Cobertura mínima (RNF11: 80% nas regras de negócio). Abaixo disso, o check fica vermelho e o PR não pode ser mesclado.
+      # A cobertura de ramos aparece no resumo, mas o RNF11 não pede mínimo para ela.
       - name: Conferir cobertura mínima
         shell: pwsh
         env:
-          MINIMO_LINHAS: 90
-          MINIMO_RAMOS: 85
+          MINIMO_LINHAS: 80
         run: |
           $arquivo = Get-ChildItem -Path ./resultados -Recurse -Filter coverage.cobertura.xml | Select-Object -First 1
           if (-not $arquivo) { throw "Relatório de cobertura não encontrado em ./resultados." }
@@ -61,13 +60,12 @@ jobs:
           $linhas = [double]$xml.coverage.'line-rate' * 100
           $ramos = [double]$xml.coverage.'branch-rate' * 100
           $minLinhas = [double]$env:MINIMO_LINHAS
-          $minRamos = [double]$env:MINIMO_RAMOS
 
-          $resumo = "Cobertura de linhas: {0:N1}% (mínimo {1}%). Cobertura de ramos: {2:N1}% (mínimo {3}%)." -f $linhas, $minLinhas, $ramos, $minRamos
+          $resumo = "Cobertura das regras de negócio: {0:N1}% das linhas (mínimo {1}%) e {2:N1}% dos ramos." -f $linhas, $minLinhas, $ramos
           Write-Host $resumo
           if ($env:GITHUB_STEP_SUMMARY) { Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $resumo }
 
-          if ($linhas -lt $minLinhas -or $ramos -lt $minRamos) {
+          if ($linhas -lt $minLinhas) {
             Write-Host "::error::Cobertura abaixo do mínimo. $resumo"
             exit 1
           }

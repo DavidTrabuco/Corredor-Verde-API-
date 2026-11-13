@@ -90,7 +90,10 @@ Cada service só depende dos que vêm antes dele, para não haver ciclo:
 ```bash
 dotnet test
 dotnet test --filter "Requisito=RN12"      # só os testes de uma regra
+dotnet test --collect:"XPlat Code Coverage" --settings coverlet.runsettings   # cobertura das regras de negócio (RNF11)
 ```
+
+Os testes conferem só o que os requisitos pedem: cada regra (RN), cada caso de uso (UC) e os RNF que têm verificação automática (RNF01, 03, 04, 05, 06, 07 e 12). Formato de JSON, CORS e o relógio em segundo plano não têm teste próprio.
 
 Cada teste tem um `DisplayName` com o ID da regra e uma frase em português, e um `[Trait("Requisito", "...")]` para cada requisito coberto. O formato está descrito no documento de progresso do grupo.
 
