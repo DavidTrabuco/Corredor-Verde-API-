@@ -71,26 +71,29 @@ namespace CorredorVerde.Application.Service
 
                 // RN10: entrou numa rua que não é a da rota
                 if (v.Rota.Count > 0 && v.Rota[0].Cruzamento != para)
-                {
-                    var antes = v.Rota.Select(r => r.Cruzamento).ToList();
-                    _log.Registrar(new[] { "RN10", "UC07" },
-                        $"{v.Id} saiu da rota em {de} (foi para {para}, a rota pedia {antes[0]}). Recalculando o trecho.",
-                        TipoEvento.Alerta);
-
-                    _corredor.LiberarTodas(v);
-                    IniciarTrecho(v);
-
-                    var depois = v.Rota.Select(r => r.Cruzamento).ToHashSet();
-                    var soltos = antes.Where(c => !depois.Contains(c)).ToList();
-                    if (soltos.Count > 0)
-                    {
-                        _log.Registrar(new[] { "RN10", "RN08" },
-                            $"Saíram do trajeto e voltaram ao ciclo normal: {string.Join(", ", soltos)}.");
-                    }
-                }
+                    RecalcularTrechoForaDaRota(v, de, para);
             }
         }
 
+        // RN10: a viatura entrou numa rua fora da rota. Refaz o trecho e avisa quais cruzamentos saíram do trajeto.
+        private void RecalcularTrechoForaDaRota(Viatura v, string de, string para)
+        {
+            var antes = v.Rota.Select(r => r.Cruzamento).ToList();
+            _log.Registrar(new[] { "RN10", "UC07" },
+                $"{v.Id} saiu da rota em {de} (foi para {para}, a rota pedia {antes[0]}). Recalculando o trecho.",
+                TipoEvento.Alerta);
+
+            _corredor.LiberarTodas(v);
+            IniciarTrecho(v);
+
+            var depois = v.Rota.Select(r => r.Cruzamento).ToHashSet();
+            var soltos = antes.Where(c => !depois.Contains(c)).ToList();
+            if (soltos.Count > 0)
+            {
+                _log.Registrar(new[] { "RN10", "RN08" },
+                    $"Saíram do trajeto e voltaram ao ciclo normal: {string.Join(", ", soltos)}.");
+            }
+        }
         // A viatura chegou ao centro do cruzamento
         public void Chegada(string viaturaId, string cruzamento)
         {
