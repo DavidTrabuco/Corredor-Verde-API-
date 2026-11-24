@@ -79,7 +79,7 @@ namespace CorredorVerde.Application.Service
                         return;
                     }
 
-                    if (t - s.DesdeSeg >= cfg.AmareloSeg - Epsilon)
+                    if (AmareloTerminou(s.DesdeSeg, cfg.AmareloSeg, t))
                         TrocarFase(s);
                     return;
                 }
@@ -90,13 +90,17 @@ namespace CorredorVerde.Application.Service
                     s.DesdeSeg = t;
                     _log.Contar("RN02");
                 }
-                else if (s.EmAmarelo && t - s.DesdeSeg >= cfg.AmareloSeg - Epsilon)
+                else if (s.EmAmarelo && AmareloTerminou(s.DesdeSeg, cfg.AmareloSeg, t))
                 {
                     TrocarFase(s);
                     _log.Contar("RN03");
                 }
             }
         }
+
+        // RN02: o amarelo dura o tempo configurado inteiro (2 s) antes de a fase trocar
+        private static bool AmareloTerminou(double desdeSeg, double amareloSeg, double agoraSeg)
+            => agoraSeg - desdeSeg >= amareloSeg - Epsilon;
 
         // RN07: só atravessa com verde; em falha passa com cautela (RN13)
         public ResultadoTravessia PodeAtravessar(string cruzamentoId, Eixo eixo, string? viaturaId)
