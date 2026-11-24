@@ -79,7 +79,7 @@ namespace CorredorVerde.Application.Service
                         return;
                     }
 
-                    if (t - s.DesdeSeg >= cfg.AmareloSeg - Epsilon)
+                    if (t - s.DesdeSeg >= cfg.AmareloSeg / 2 - Epsilon)
                         TrocarFase(s);
                     return;
                 }
@@ -90,7 +90,7 @@ namespace CorredorVerde.Application.Service
                     s.DesdeSeg = t;
                     _log.Contar("RN02");
                 }
-                else if (s.EmAmarelo && t - s.DesdeSeg >= cfg.AmareloSeg - Epsilon)
+                else if (s.EmAmarelo && t - s.DesdeSeg >= cfg.AmareloSeg / 2 - Epsilon)
                 {
                     TrocarFase(s);
                     _log.Contar("RN03");
