@@ -83,8 +83,7 @@ namespace CorredorVerde.Application.Service
                 $"{v.Id} saiu da rota em {de} (foi para {para}, a rota pedia {antes[0]}). Recalculando o trecho.",
                 TipoEvento.Alerta);
 
-            _corredor.LiberarTodas(v);
-            IniciarTrecho(v);
+            RefazerTrecho(v);
 
             var depois = v.Rota.Select(r => r.Cruzamento).ToHashSet();
             var soltos = antes.Where(c => !depois.Contains(c)).ToList();
@@ -94,6 +93,14 @@ namespace CorredorVerde.Application.Service
                     $"Saíram do trajeto e voltaram ao ciclo normal: {string.Join(", ", soltos)}.");
             }
         }
+
+        // RN10: solta os cruzamentos reservados e abre o corredor de novo a partir de onde a viatura está
+        private void RefazerTrecho(Viatura v)
+        {
+            _corredor.LiberarTodas(v);
+            IniciarTrecho(v);
+        }
+
         // A viatura chegou ao centro do cruzamento
         public void Chegada(string viaturaId, string cruzamento)
         {
@@ -139,8 +146,7 @@ namespace CorredorVerde.Application.Service
                     _log.Registrar(new[] { "RN10", "UC07" },
                         $"{v.Id} chegou a {cruzamento}, fora da rota. Recalculando o trecho.",
                         TipoEvento.Alerta);
-                    _corredor.LiberarTodas(v);
-                    IniciarTrecho(v);
+                    RefazerTrecho(v);
                 }
 
                 if (v.Modo == ModoViatura.Emergencia && cruzamento == v.Destino && v.Rota.Count == 0)
