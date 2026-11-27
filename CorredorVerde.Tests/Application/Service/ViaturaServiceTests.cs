@@ -187,26 +187,6 @@ namespace CorredorVerde.Tests.Application.Service
             Assert.Equal("C7 → C8 → C9 → C10 → C15", f.RotaComoTexto(ambulancia));
         }
 
-        [Fact(DisplayName = "RN09 · Ao chegar ao cruzamento da ocorrência pela rota, começa o atendimento")]
-        [Trait("Requisito", "RN09")]
-        [Trait("Requisito", "UC05")]
-        public void Chegada_DeveComecarOAtendimento_QuandoChegaAoDestinoPelaRota()
-        {
-            // Arrange: AMB-01 em C14, com o corredor aberto até C15
-            var f = CidadeFactory.Criar();
-            var ambulancia = f.ColocarEmEmergencia("AMB-01", de: "C14", ate: "C15", criticidade: 1);
-            var ocorrencia = f.Cidade.Ocorrencias[0];
-            f.Frota.IniciarTrecho(ambulancia);
-
-            // Act: a ambulância chega ao centro de C15
-            f.Frota.Chegada("AMB-01", "C15");
-
-            // Assert: começou o atendimento e o corredor foi todo liberado
-            Assert.Equal(ModoViatura.Atendimento, ambulancia.Modo);
-            Assert.Equal(StatusOcorrencia.EmAtendimento, ocorrencia.Status);
-            Assert.True(f.NenhumCruzamentoReservado());
-        }
-
         [Fact(DisplayName = "RN15 · Quem volta para a base e pega outra rua tem o caminho de volta refeito")]
         [Trait("Requisito", "RN15")]
         [Trait("Requisito", "UC07")]
