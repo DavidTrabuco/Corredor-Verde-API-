@@ -95,21 +95,43 @@ namespace CorredorVerde.Tests.Application.Service
             Assert.Equal(2, f.Cidade.Ocorrencias.Count);
         }
 
-        [Fact(DisplayName = "RNF04 · Criticidade fora de 1 a 3 é recusada sem mexer na cidade")]
+        // Os dois lados da fronteira: 0 e -1 ficam abaixo do mínimo (1) e 4 fica acima do máximo (3)
+        [Theory(DisplayName = "RNF04 · Criticidade fora de 1 a 3 é recusada sem mexer na cidade")]
+        [InlineData(-1)]
+        [InlineData(0)]
+        [InlineData(4)]
         [Trait("Requisito", "RNF04")]
         [Trait("Requisito", "UC03")]
-        public void Registrar_DeveRecusar_QuandoCriticidadeEInvalida()
+        public void Registrar_DeveRecusar_QuandoCriticidadeEstaForaDoLimite(int criticidade)
         {
             // Arrange
             var f = CidadeFactory.Criar();
 
             // Act
-            var erro = Assert.Throws<ValidacaoException>(() => f.Emergencias.Registrar("Ambulancia", "C15", 4));
+            var erro = Assert.Throws<ValidacaoException>(() => f.Emergencias.Registrar("Ambulancia", "C15", criticidade));
 
-            // Assert: nada foi alterado
-            Assert.Equal("Criticidade 4 inválida: use 1, 2 ou 3.", erro.Message);
+            // Assert: a mensagem cita o valor recusado e nada foi alterado
+            Assert.Contains($"Criticidade {criticidade} inválida", erro.Message);
             Assert.Empty(f.Cidade.Ocorrencias);
             Assert.Equal(ModoViatura.Patrulha, f.PegarViatura("AMB-01").Modo);
+        }
+
+        [Theory(DisplayName = "RNF04 · Criticidade 1 e 3, os extremos permitidos, são aceitas")]
+        [InlineData(1)]
+        [InlineData(3)]
+        [Trait("Requisito", "RNF04")]
+        [Trait("Requisito", "UC03")]
+        public void Registrar_DeveAceitar_QuandoCriticidadeEstaNoLimite(int criticidade)
+        {
+            // Arrange
+            var f = CidadeFactory.Criar();
+
+            // Act
+            var ocorrencia = f.Emergencias.Registrar("Ambulancia", "C15", criticidade);
+
+            // Assert
+            Assert.Equal(criticidade, ocorrencia.Criticidade);
+            Assert.Single(f.Cidade.Ocorrencias);
         }
 
         [Fact(DisplayName = "RNF04 · Tipo de viatura desconhecido é recusado")]
